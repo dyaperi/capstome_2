@@ -26,9 +26,21 @@
     <aside class="col-md-2 bg-light sidebar py-3 min-vh-100">
       <a class="nav-link {% if page=='dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">Dashboard</a>
       <a class="nav-link {% if page=='menu_engineering' %}active{% endif %}" href="{{ url_for('menu_engineering') }}">Menu Engineering</a>
-      <a class="nav-link {% if page=='sales' %}active{% endif %}" href="{{ url_for('sales_entry') }}">Sales Entry</a>
-      <a class="nav-link {% if page=='expenses' %}active{% endif %}" href="{{ url_for('expense_entry') }}">Expense Entry</a>
-      <a class="nav-link {% if page=='marketing' %}active{% endif %}" href="{{ url_for('marketing_entry') }}">Marketing Entry</a>
+      {% set finance_active = page in ['sales', 'expenses', 'marketing'] %}
+      <button
+        type="button"
+        class="nav-link nav-parent-toggle {% if finance_active %}active expanded{% endif %}"
+        data-sidebar-toggle="finance-entry"
+        aria-expanded="{{ 'true' if finance_active else 'false' }}"
+      >
+        <span>Finance Entry</span>
+        <span class="toggle-caret" aria-hidden="true">▾</span>
+      </button>
+      <div id="finance-entry" class="sidebar-submenu {% if finance_active %}show{% endif %}">
+        <a class="nav-link sub-link {% if page=='sales' %}active{% endif %}" href="{{ url_for('sales_entry') }}">Sales Entry</a>
+        <a class="nav-link sub-link {% if page=='expenses' %}active{% endif %}" href="{{ url_for('expense_entry') }}">Expense Entry</a>
+        <a class="nav-link sub-link {% if page=='marketing' %}active{% endif %}" href="{{ url_for('marketing_entry') }}">Marketing Entry</a>
+      </div>
       <a class="nav-link {% if page=='reviews' %}active{% endif %}" href="{{ url_for('review_entry') }}">Customer Reviews</a>
       <a class="nav-link {% if page=='analytics' %}active{% endif %}" href="{{ url_for('analytics_page') }}">Analytics</a>
       <a class="nav-link {% if page=='forecast' %}active{% endif %}" href="{{ url_for('forecast_page') }}">Forecast</a>

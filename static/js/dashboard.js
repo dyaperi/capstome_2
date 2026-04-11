@@ -1,4 +1,15 @@
 (function () {
+  const sidebarToggle = document.querySelector('[data-sidebar-toggle="finance-entry"]');
+  const financeSubmenu = document.getElementById('finance-entry');
+  if (sidebarToggle && financeSubmenu) {
+    sidebarToggle.addEventListener('click', () => {
+      const willExpand = !financeSubmenu.classList.contains('show');
+      financeSubmenu.classList.toggle('show', willExpand);
+      sidebarToggle.classList.toggle('expanded', willExpand);
+      sidebarToggle.setAttribute('aria-expanded', willExpand ? 'true' : 'false');
+    });
+  }
+
   const menuEl = document.getElementById('menu-engineering-data');
   if (menuEl) {
     const md = JSON.parse(menuEl.textContent);

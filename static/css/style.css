@@ -1,6 +1,35 @@
 body { background: #f7f9fc; }
 .sidebar .nav-link { color: #334; border-radius: 8px; margin-bottom: 4px; }
 .sidebar .nav-link.active, .sidebar .nav-link:hover { background: #0d6efd; color: white; }
+.sidebar .nav-parent-toggle {
+  width: 100%;
+  border: 0;
+  text-align: left;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sidebar .toggle-caret {
+  font-size: 0.8rem;
+  transition: transform 0.2s ease;
+}
+.sidebar .nav-parent-toggle.expanded .toggle-caret {
+  transform: rotate(180deg);
+}
+.sidebar-submenu {
+  margin-left: 0.75rem;
+  padding-left: 0.5rem;
+  border-left: 2px solid #dce3f0;
+  display: none;
+}
+.sidebar-submenu.show {
+  display: block;
+}
+.sidebar .sub-link {
+  font-size: 0.95rem;
+  padding-left: 0.75rem;
+}
 .kpi { border: none; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
 .card { border-radius: 12px; }
 table th a { text-decoration: none; color: inherit; }
