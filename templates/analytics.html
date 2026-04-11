@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Analytics Page</h3>
+<div class="alert alert-info">Financial and performance analytics from MySQL-stored data.</div>
+<div class="row"><div class="col-md-12"><canvas id="revenueChart"></canvas></div></div>
+<script id="chart-data" type="application/json">{{ metrics|tojson }}</script>
+{% endblock %}

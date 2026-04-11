@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Summary Reports</h3>
+<div class="card card-body mb-3">
+  <h6>Profit & Loss Summary</h6>
+  <p>Total Revenue: RM {{ metrics.kpis.revenue }}</p>
+  <p>Total Cost: RM {{ metrics.kpis.cost }}</p>
+  <p>Estimated Profit: RM {{ metrics.kpis.profit }}</p>
+</div>
+<div class="card card-body">
+  <h6>Menu Performance</h6>
+  <table class="table table-sm"><thead><tr><th>Item</th><th>Qty</th><th>Revenue</th><th>Profit</th></tr></thead>
+  <tbody>{% for row in metrics.menu_performance %}<tr><td>{{ row.item }}</td><td>{{ row.quantity }}</td><td>{{ row.revenue|round(2) }}</td><td>{{ row.profit|round(2) }}</td></tr>{% endfor %}</tbody></table>
+</div>
+{% endblock %}

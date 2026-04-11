@@ -1,0 +1,6 @@
+body { background: #f7f9fc; }
+.sidebar .nav-link { color: #334; border-radius: 8px; margin-bottom: 4px; }
+.sidebar .nav-link.active, .sidebar .nav-link:hover { background: #0d6efd; color: white; }
+.kpi { border: none; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.card { border-radius: 12px; }
+table th a { text-decoration: none; color: inherit; }

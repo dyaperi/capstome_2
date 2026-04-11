@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Marketing ROI Page</h3>
+<table class="table table-striped"><thead><tr><th>Campaign</th><th>Spend</th><th>Revenue</th><th>ROI %</th></tr></thead>
+<tbody>{% for c in metrics.campaign_roi %}<tr><td>{{ c.campaign }}</td><td>{{ c.spend }}</td><td>{{ c.revenue }}</td><td>{{ c.roi|round(2) }}</td></tr>{% endfor %}</tbody>
+</table>
+{% endblock %}

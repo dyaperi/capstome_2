@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Customer Review Entry</h3>
+<form method="post" class="card card-body mb-3">
+  <input type="hidden" name="review_id" value="{{ editing.id if editing else '' }}">
+  <div class="row g-2">
+    <div class="col-md-2"><label class="form-label">Date</label><input type="date" class="form-control" name="review_date" value="{{ editing.review_date if editing else today }}" required></div>
+    <div class="col-md-2"><label class="form-label">Source</label><input class="form-control" name="source" value="{{ editing.source if editing else '' }}" required></div>
+    <div class="col-md-1"><label class="form-label">Rating</label><input type="number" min="1" max="5" class="form-control" name="rating" value="{{ editing.rating if editing else '' }}" required></div>
+    <div class="col-md-7"><label class="form-label">Review Text</label><input class="form-control" name="review_text" value="{{ editing.review_text if editing else '' }}" required></div>
+  </div>
+  <button class="btn btn-primary mt-3">{{ 'Update' if editing else 'Save' }} Review</button>
+  {% if editing %}<a class="btn btn-secondary mt-3" href="{{ url_for('review_entry') }}">Cancel</a>{% endif %}
+</form>
+<table class="table table-sm table-striped"><thead><tr><th>Date</th><th>Source</th><th>Rating</th><th>Sentiment</th><th>Text</th><th>Actions</th></tr></thead><tbody>{% for r in recent %}<tr><td>{{ r.review_date }}</td><td>{{ r.source }}</td><td>{{ r.rating }}</td><td>{{ r.sentiment_label }}</td><td>{{ r.review_text }}</td><td class="d-flex gap-1"><a class="btn btn-sm btn-warning" href="{{ url_for('review_entry', edit=r.id) }}">Edit</a><form method="post" action="{{ url_for('reviews_delete', review_id=r.id) }}" onsubmit="return confirm('Delete this review row?');"><button class="btn btn-sm btn-danger" type="submit">Delete</button></form></td></tr>{% endfor %}</tbody></table>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Main Dashboard</h3>
+<p class="text-muted">Decision-support overview for traditional F&B SMEs.</p>
+<div class="row g-3 mb-3">
+  <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Revenue</small><h5>RM {{ metrics.kpis.revenue }}</h5></div></div></div>
+  <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Cost</small><h5>RM {{ metrics.kpis.cost }}</h5></div></div></div>
+  <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Profit</small><h5>RM {{ metrics.kpis.profit }}</h5></div></div></div>
+  <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>ROI</small><h5>{{ metrics.kpis.roi }}%</h5></div></div></div>
+  <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Positive Sentiment</small><h5>{{ metrics.kpis.positive_sentiment }}%</h5></div></div></div>
+  <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Demand Window</small><h6>{{ metrics.peak_day }} / {{ metrics.low_day }}</h6></div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6"><div class="card"><div class="card-body"><h6>Revenue Trend</h6><canvas id="revenueChart"></canvas></div></div></div>
+  <div class="col-md-6"><div class="card"><div class="card-body"><h6>Cash Flow Trend</h6><canvas id="cashChart"></canvas></div></div></div>
+  <div class="col-md-6"><div class="card"><div class="card-body"><h6>Sentiment Distribution</h6><canvas id="sentimentPie"></canvas></div></div></div>
+  <div class="col-md-6"><div class="card"><div class="card-body"><h6>Revenue vs Sentiment</h6><canvas id="sentimentSales"></canvas></div></div></div>
+</div>
+
+<script id="chart-data" type="application/json">{{ metrics|tojson }}</script>
+{% endblock %}

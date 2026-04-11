@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <h2 class="mb-0">Menu Engineering</h2>
+    <p class="text-muted mb-0">Analyze popularity vs. profitability to optimize your menu mix.</p>
+  </div>
+  <form class="d-flex gap-2" method="get" action="{{ url_for('menu_engineering_filter') }}">
+    <input class="form-control" name="search" value="{{ request.args.get('search','') }}" placeholder="Search items...">
+    <input type="hidden" name="sort_by" value="{{ request.args.get('sort_by','item_name') }}">
+    <input type="hidden" name="sort_dir" value="{{ request.args.get('sort_dir','asc') }}">
+    <select class="form-select" name="category">
+      {% for c in data.categories %}
+      <option value="{{ c }}" {% if request.args.get('category','All')==c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-primary">Filter</button>
+  </form>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card border-success"><div class="card-body"><small class="text-success fw-bold">STARS</small><h3>{{ data.counts.Star }}</h3><small class="text-muted">High Profit + High Vol</small></div></div></div>
+  <div class="col-md-3"><div class="card border-primary"><div class="card-body"><small class="text-primary fw-bold">PLOWHORSES</small><h3>{{ data.counts.Plowhorse }}</h3><small class="text-muted">Low Profit + High Vol</small></div></div></div>
+  <div class="col-md-3"><div class="card border-warning"><div class="card-body"><small class="text-warning fw-bold">PUZZLES</small><h3>{{ data.counts.Puzzle }}</h3><small class="text-muted">High Profit + Low Vol</small></div></div></div>
+  <div class="col-md-3"><div class="card border-danger"><div class="card-body"><small class="text-danger fw-bold">DOGS</small><h3>{{ data.counts.Dog }}</h3><small class="text-muted">Low Profit + Low Vol</small></div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3"><div class="card-body"><h5>Profitability vs. Popularity Matrix</h5><canvas id="menuMatrixChart" height="130"></canvas></div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card text-bg-dark h-100"><div class="card-body"><h5>Strategic Actions</h5>
+      {% for r in data.rows %}
+      <div class="border rounded p-2 mb-2">
+        <div class="d-flex justify-content-between"><strong>{{ r.item_name }}</strong><span>RM{{ '%.2f'|format(r.contribution_margin) }}</span></div>
+        <span class="badge {% if r.classification=='Star' %}text-bg-success{% elif r.classification=='Plowhorse' %}text-bg-primary{% elif r.classification=='Puzzle' %}text-bg-warning{% else %}text-bg-danger{% endif %}">{{ r.classification }}</span>
+        <div class="small mt-2">{{ r.recommendation }}</div>
+      </div>
+      {% endfor %}
+    </div></div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-body">
+    <h5>{{ 'Edit' if editing else 'Add' }} Menu Item</h5>
+    <form method="post" action="{{ url_for('menu_engineering_edit', menu_id=editing.id) if editing else url_for('menu_engineering_add') }}">
+      <div class="row g-2">
+        <div class="col-md-2"><input class="form-control" name="item_name" placeholder="Item Name" value="{{ editing.item_name if editing else '' }}" required></div>
+        <div class="col-md-2"><input class="form-control" name="category" placeholder="Category" value="{{ editing.category if editing else '' }}" required></div>
+        <div class="col-md-1"><input class="form-control" step="0.01" name="selling_price" placeholder="Price" value="{{ editing.selling_price if editing else '' }}" required></div>
+        <div class="col-md-1"><input class="form-control" step="0.01" name="ingredient_cost" placeholder="Ingredient" value="{{ editing.ingredient_cost if editing else 0 }}"></div>
+        <div class="col-md-1"><input class="form-control" step="0.01" name="labor_cost" placeholder="Labor" value="{{ editing.labor_cost if editing else 0 }}"></div>
+        <div class="col-md-1"><input class="form-control" step="0.01" name="packaging_cost" placeholder="Packaging" value="{{ editing.packaging_cost if editing else 0 }}"></div>
+        <div class="col-md-1"><input class="form-control" step="0.01" name="overhead_cost" placeholder="Overhead" value="{{ editing.overhead_cost if editing else 0 }}"></div>
+        <div class="col-md-1"><input class="form-control" type="number" name="quantity_sold" placeholder="Qty Sold" value="{{ editing.quantity_sold if editing else 0 }}"></div>
+        <div class="col-md-1"><select class="form-select" name="status"><option value="active" {% if not editing or editing.status=='active' %}selected{% endif %}>Active</option><option value="inactive" {% if editing and editing.status=='inactive' %}selected{% endif %}>Inactive</option></select></div>
+        <div class="col-md-1 d-grid"><button class="btn btn-primary">{{ 'Update' if editing else 'Add' }}</button></div>
+      </div>
+      {% if editing %}<a class="btn btn-sm btn-secondary mt-2" href="{{ url_for('menu_engineering') }}">Cancel edit</a>{% endif %}
+    </form>
+  </div>
+</div>
+
+<div class="card mt-3"><div class="card-body">
+  <h5>Menu Engineering Table</h5>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped">
+      <thead><tr>
+        <th><a href="{{ url_for('menu_engineering', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by='item_name', sort_dir='asc' if request.args.get('sort_dir','asc')=='desc' else 'desc') }}">Item Name</a></th>
+        <th>Category</th><th>Selling Price</th><th>Total Unit Cost</th>
+        <th><a href="{{ url_for('menu_engineering', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by='contribution_margin', sort_dir='asc' if request.args.get('sort_dir','asc')=='desc' else 'desc') }}">Contribution Margin</a></th>
+        <th><a href="{{ url_for('menu_engineering', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by='quantity_sold', sort_dir='asc' if request.args.get('sort_dir','asc')=='desc' else 'desc') }}">Quantity Sold</a></th>
+        <th><a href="{{ url_for('menu_engineering', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by='total_profit', sort_dir='asc' if request.args.get('sort_dir','asc')=='desc' else 'desc') }}">Total Profit</a></th>
+        <th><a href="{{ url_for('menu_engineering', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by='classification', sort_dir='asc' if request.args.get('sort_dir','asc')=='desc' else 'desc') }}">Classification</a></th>
+        <th>Actions</th></tr></thead>
+      <tbody>
+      {% for r in data.rows %}
+        <tr>
+          <td>{{ r.item_name }}</td><td>{{ r.category }}</td><td>{{ r.selling_price }}</td><td>{{ r.total_unit_cost }}</td><td>{{ r.contribution_margin }}</td><td>{{ r.quantity_sold }}</td><td>{{ r.total_profit }}</td>
+          <td><span class="badge {% if r.classification=='Star' %}text-bg-success{% elif r.classification=='Plowhorse' %}text-bg-primary{% elif r.classification=='Puzzle' %}text-bg-warning{% else %}text-bg-danger{% endif %}">{{ r.classification }}</span></td>
+          <td class="d-flex gap-1">
+            <a class="btn btn-sm btn-warning" href="{{ url_for('menu_engineering', edit=r.id) }}">Edit</a>
+            <form method="post" action="{{ url_for('menu_engineering_delete', menu_id=r.id) }}" onsubmit="return confirm('Delete this item?');"><button class="btn btn-sm btn-danger" type="submit">Delete</button></form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+
+<script id="menu-engineering-data" type="application/json">{{ data|tojson }}</script>
+{% endblock %}

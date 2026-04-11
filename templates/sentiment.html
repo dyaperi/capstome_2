@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Sentiment Insights Page</h3>
+<div class="row g-3">
+  <div class="col-md-5"><canvas id="sentimentPie"></canvas></div>
+  <div class="col-md-7"><canvas id="sentimentSales"></canvas></div>
+</div>
+<script id="chart-data" type="application/json">{{ metrics|tojson }}</script>
+{% endblock %}

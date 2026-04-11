@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Forecast Page</h3>
+<div class="row g-3">
+  <div class="col-md-6"><canvas id="forecastRevenue"></canvas></div>
+  <div class="col-md-6"><canvas id="forecastCash"></canvas></div>
+</div>
+<script id="chart-data" type="application/json">{{ metrics|tojson }}</script>
+{% endblock %}

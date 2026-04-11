@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Expense Entry Form</h3>
+<form method="post" class="card card-body mb-3">
+  <input type="hidden" name="expense_id" value="{{ editing.id if editing else '' }}">
+  <div class="row g-2">
+    <div class="col-md-3"><label class="form-label">Date</label><input type="date" class="form-control" name="expense_date" value="{{ editing.expense_date if editing else today }}" required></div>
+    <div class="col-md-3"><label class="form-label">Category</label><input class="form-control" name="category" value="{{ editing.category if editing else '' }}" required></div>
+    <div class="col-md-3"><label class="form-label">Amount</label><input step="0.01" class="form-control" name="amount" value="{{ editing.amount if editing else '' }}" required></div>
+    <div class="col-md-3"><label class="form-label">Note</label><input class="form-control" name="note" value="{{ editing.note if editing else '' }}"></div>
+  </div>
+  <button class="btn btn-primary mt-3">{{ 'Update' if editing else 'Save' }} Expense</button>
+  {% if editing %}<a class="btn btn-secondary mt-3" href="{{ url_for('expense_entry') }}">Cancel</a>{% endif %}
+</form>
+<table class="table table-sm table-striped"><thead><tr><th>Date</th><th>Category</th><th>Amount</th><th>Note</th><th>Actions</th></tr></thead><tbody>{% for e in recent %}<tr><td>{{ e.expense_date }}</td><td>{{ e.category }}</td><td>{{ e.amount }}</td><td>{{ e.note }}</td><td class="d-flex gap-1"><a class="btn btn-sm btn-warning" href="{{ url_for('expense_entry', edit=e.id) }}">Edit</a><form method="post" action="{{ url_for('expense_delete', expense_id=e.id) }}" onsubmit="return confirm('Delete this expense row?');"><button class="btn btn-sm btn-danger" type="submit">Delete</button></form></td></tr>{% endfor %}</tbody></table>
+{% endblock %}
