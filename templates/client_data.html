@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Client Data & Analyst Notes</h3>
+<p class="text-muted">Admin / Analyst view for monitoring client activity and adding notes.</p>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h5>QR Feedback Management</h5>
+    <p class="text-muted mb-2">Generate, preview, and share unique feedback QR links by client.</p>
+    <div class="row g-3">
+      {% for qc in qr_clients %}
+      <div class="col-lg-4 col-md-6">
+        <div class="border rounded p-3 h-100">
+          <div class="fw-semibold mb-2">{{ qc.name }}</div>
+          <img src="{{ qc.qr_image_url }}" alt="QR {{ qc.name }}" width="120" height="120" class="border rounded mb-2">
+          <div class="small text-muted mb-2">{{ qc.feedback_url }}</div>
+          <a class="btn btn-sm btn-outline-primary" href="{{ qc.feedback_url }}" target="_blank" rel="noopener">Open Feedback Form</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ qc.qr_image_url }}" target="_blank" rel="noopener">Download QR</a>
+        </div>
+      </div>
+      {% else %}
+      <div class="col-12 text-muted">No clients available for QR generation.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="mb-3">Add Note</h5>
+    <form method="post">
+      <div class="row g-2">
+        <div class="col-md-4">
+          <label class="form-label">Client</label>
+          <select class="form-select" name="client_user_id" required>
+            <option value="">Select client</option>
+            {% for c in clients %}
+            <option value="{{ c.id }}">{{ c.full_name }} ({{ c.username }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-8">
+          <label class="form-label">Note</label>
+          <input class="form-control" name="note_text" placeholder="Enter analyst note..." required>
+        </div>
+      </div>
+      <button class="btn btn-primary mt-3">Save Note</button>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h5>Recent Analyst Notes</h5>
+    <div class="table-responsive">
+      <table class="table table-sm table-striped">
+        <thead><tr><th>Created</th><th>Client</th><th>Analyst</th><th>Note</th></tr></thead>
+        <tbody>
+          {% for n in notes %}
+          <tr>
+            <td>{{ n.created_at.strftime('%Y-%m-%d %H:%M') if n.created_at else '' }}</td>
+            <td>{{ n.client_user.full_name if n.client_user else 'Unknown' }}</td>
+            <td>{{ n.analyst_user.full_name if n.analyst_user else 'Unknown' }}</td>
+            <td>{{ n.note_text }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-muted">No notes yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6>Recent Sales</h6>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Channel</th></tr></thead>
+            <tbody>
+              {% for s in recent_sales %}
+              <tr><td>{{ s.sale_date }}</td><td>{{ s.menu_item.item_name if s.menu_item else 'Unknown' }}</td><td>{{ s.quantity }}</td><td>{{ s.channel }}</td></tr>
+              {% else %}
+              <tr><td colspan="4" class="text-muted">No sales records.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6>Recent Expenses</h6>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Date</th><th>Category</th><th>Amount</th></tr></thead>
+            <tbody>
+              {% for e in recent_expenses %}
+              <tr><td>{{ e.expense_date }}</td><td>{{ e.category }}</td><td>{{ e.amount }}</td></tr>
+              {% else %}
+              <tr><td colspan="3" class="text-muted">No expense records.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6>Recent Marketing Campaigns</h6>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Date</th><th>Name</th><th>Platform</th><th>Spend</th></tr></thead>
+            <tbody>
+              {% for m in recent_marketing %}
+              <tr><td>{{ m.campaign_date }}</td><td>{{ m.campaign_name }}</td><td>{{ m.platform }}</td><td>{{ m.spend }}</td></tr>
+              {% else %}
+              <tr><td colspan="4" class="text-muted">No campaign records.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6>Recent Reviews</h6>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Date</th><th>Client</th><th>Source</th><th>Rating</th><th>Sentiment</th><th>Urgency</th></tr></thead>
+            <tbody>
+              {% for r in recent_reviews %}
+              <tr><td>{{ r.review_date }}</td><td>{{ r.client.full_name if r.client else '-' }}</td><td><span class="badge {% if r.source=='QR Feedback Form' %}text-bg-info{% else %}text-bg-secondary{% endif %}">{{ r.source }}</span></td><td>{{ r.rating }}</td><td>{{ r.sentiment_label }}</td><td>{{ r.urgency_level or 'low' }}</td></tr>
+              {% else %}
+              <tr><td colspan="6" class="text-muted">No reviews.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

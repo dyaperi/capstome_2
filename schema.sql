@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(100) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
   full_name VARCHAR(150) NOT NULL,
+  role VARCHAR(30) NOT NULL DEFAULT 'client',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -59,13 +60,24 @@ CREATE TABLE IF NOT EXISTS marketing_campaigns (
 
 CREATE TABLE IF NOT EXISTS customer_reviews (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  client_id INT,
+  customer_name VARCHAR(150),
+  phone_number VARCHAR(30),
   review_date DATE NOT NULL,
+  menu_item VARCHAR(150),
+  order_type VARCHAR(30),
   source VARCHAR(80) NOT NULL,
   rating INT NOT NULL,
   review_text TEXT NOT NULL,
+  receipt_number VARCHAR(80),
+  issue_tag VARCHAR(80) DEFAULT 'General',
+  urgency_level VARCHAR(20) DEFAULT 'low',
+  submission_channel VARCHAR(30) DEFAULT 'manual',
   sentiment_label VARCHAR(20) NOT NULL,
   sentiment_score DECIMAL(8,4) NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (client_id) REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS forecast_results (
@@ -74,4 +86,14 @@ CREATE TABLE IF NOT EXISTS forecast_results (
   metric VARCHAR(50) NOT NULL,
   value DECIMAL(12,2) NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS analyst_notes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  client_user_id INT NOT NULL,
+  analyst_user_id INT NOT NULL,
+  note_text TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (client_user_id) REFERENCES users(id),
+  FOREIGN KEY (analyst_user_id) REFERENCES users(id)
 );

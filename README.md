@@ -82,19 +82,19 @@ index 60086c67550c76de5cb8ea24fdfcf964c2c9f683..db9fdc12c93426aebb0962bc14f6eaed
 + ./run_flask.sh
 + ```
 + 
-+Open: `http://127.0.0.1:5000`
-+
-+## Notes
-+- Primary data input is manual forms in the web app (CSV upload is not the main workflow).
-+- All business records are stored in the configured SQL database and analytics are calculated from DB data.
-+- Default configuration points to MySQL: `mysql+pymysql://root:deaperi@localhost:3306/fnb_insights`.
-+
-+## Troubleshooting
-+- If you see `SyntaxError` with `<<<<<<< ours` in `app.py`, your local file still has unresolved Git merge conflict markers.
++ Open: `http://127.0.0.1:5000`
++ 
++ ## Notes
++ - Primary data input is manual forms in the web app (CSV upload is not the main workflow).
++ - All business records are stored in the configured SQL database and analytics are calculated from DB data.
++ - Default configuration points to MySQL: `mysql+pymysql://root:deaperi@localhost:3306/fnb_insights`.
++ 
++ ## Troubleshooting
++ - If you see `SyntaxError` with `<<<<<<< ours` in `app.py`, your local file still has unresolved Git merge conflict markers.
 +- Fix by discarding local conflicted content and restoring the committed version:
 +  - `git checkout -- app.py`
 +  - then run `python -m py_compile app.py` to confirm syntax is valid.
-+- If you see `ModuleNotFoundError: No module named 'flask_sqlalchemy'`, your current Python environment does not have dependencies installed.
++ - If you see `ModuleNotFoundError: No module named 'flask_sqlalchemy'`, your current Python environment does not have dependencies installed.
 +  1. Activate your virtual environment first.
 +  2. Run:
 +     - `python -m pip install --upgrade pip`
@@ -103,14 +103,14 @@ index 60086c67550c76de5cb8ea24fdfcf964c2c9f683..db9fdc12c93426aebb0962bc14f6eaed
 +     - `python -m pip show Flask-SQLAlchemy`
 +  4. Re-run:
 +     - `python app.py`
-+- If you ran `streamlit run app.py`, stop and run `python app.py` instead (this project uses Flask routes/templates, not Streamlit).
-+
-+### Fix merge-conflicted files quickly
-+If Git shows:
-+- `Conflicted: README.md`
-+- `Conflicted: app.py`
-+- `Conflicted: requirements.txt`
-+
++ - If you ran `streamlit run app.py`, stop and run `python app.py` instead (this project  uses Flask routes/templates, not Streamlit).
++ 
++ ### Fix merge-conflicted files quickly
++ If Git shows:
++ - `Conflicted: README.md`
++ - `Conflicted: app.py`
++  - `Conflicted: requirements.txt`
++ 
 + run:
 + ```bash
 + ./fix_conflicts.sh
@@ -120,3 +120,5 @@ index 60086c67550c76de5cb8ea24fdfcf964c2c9f683..db9fdc12c93426aebb0962bc14f6eaed
 
 
 # Example
+
+

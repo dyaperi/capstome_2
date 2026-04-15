@@ -13,7 +13,8 @@
     <a class="navbar-brand" href="{{ url_for('dashboard') }}">F&B SME Insights</a>
     <div class="ms-auto">
       {% if session.get('user_id') %}
-      <span class="text-white me-3">{{ session.get('full_name') }}</span>
+      {% set role_label = 'Admin / Analyst' if session.get('role') == 'admin_analyst' else 'Client' %}
+      <span class="text-white me-3">{{ session.get('full_name') }} ({{ role_label }})</span>
       <a href="{{ url_for('logout') }}" class="btn btn-light btn-sm">Logout</a>
       {% endif %}
     </div>
@@ -47,6 +48,9 @@
       <a class="nav-link {% if page=='roi' %}active{% endif %}" href="{{ url_for('roi_page') }}">ROI</a>
       <a class="nav-link {% if page=='sentiment' %}active{% endif %}" href="{{ url_for('sentiment_page') }}">Sentiment</a>
       <a class="nav-link {% if page=='reports' %}active{% endif %}" href="{{ url_for('reports_page') }}">Reports</a>
+      {% if session.get('role') == 'admin_analyst' %}
+      <a class="nav-link {% if page=='client_data' %}active{% endif %}" href="{{ url_for('client_data') }}">Client Data & Notes</a>
+      {% endif %}
     </aside>
     <main class="col-md-10 p-4">
     {% else %}
