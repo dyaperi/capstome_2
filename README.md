@@ -77,11 +77,11 @@ index 60086c67550c76de5cb8ea24fdfcf964c2c9f683..db9fdc12c93426aebb0962bc14f6eaed
 +python app.py
 +```
 +
-+Or run helper script:
-+```bash
-+./run_flask.sh
-+```
-+
++ Or run helper script:
++ ```bash
++ ./run_flask.sh
++ ```
++ 
 +Open: `http://127.0.0.1:5000`
 +
 +## Notes
@@ -111,9 +111,12 @@ index 60086c67550c76de5cb8ea24fdfcf964c2c9f683..db9fdc12c93426aebb0962bc14f6eaed
 +- `Conflicted: app.py`
 +- `Conflicted: requirements.txt`
 +
-+run:
-+```bash
-+./fix_conflicts.sh
-+```
-+
-+This script checks those files for conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) and restores clean versions from your current branch `HEAD`.
++ run:
++ ```bash
++ ./fix_conflicts.sh
++ ```
++ 
++ This script checks those files for conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) and restores clean versions from your current branch `HEAD`.
+
+
+# Example
