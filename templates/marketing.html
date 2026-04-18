@@ -4,12 +4,30 @@
 <form method="post" class="card card-body mb-3">
   <input type="hidden" name="campaign_id" value="{{ editing.id if editing else '' }}">
   <div class="row g-2">
-    <div class="col-md-2"><label class="form-label">Date</label><input type="date" class="form-control" name="campaign_date" value="{{ editing.campaign_date if editing else today }}" required></div>
-    <div class="col-md-3"><label class="form-label">Campaign</label><input class="form-control" name="campaign_name" value="{{ editing.campaign_name if editing else '' }}" required></div>
-    <div class="col-md-2"><label class="form-label">Platform</label><input class="form-control" name="platform" value="{{ editing.platform if editing else '' }}" required></div>
-    <div class="col-md-2"><label class="form-label">Spend</label><input step="0.01" class="form-control" name="spend" value="{{ editing.spend if editing else '' }}" required></div>
-    <div class="col-md-2"><label class="form-label">Revenue</label><input step="0.01" class="form-control" name="revenue_generated" value="{{ editing.revenue_generated if editing else '' }}" required></div>
-    <div class="col-md-1"><label class="form-label">Note</label><input class="form-control" name="note" value="{{ editing.note if editing else '' }}"></div>
+    <div class="col-md-2">
+      <label class="form-label">Date</label>
+      <input type="date" class="form-control" name="campaign_date" value="{{ editing.campaign_date if editing else today }}" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Campaign</label>
+      <input type="text" maxlength="150" class="form-control" name="campaign_name" value="{{ editing.campaign_name if editing else '' }}" placeholder="Campaign title" required>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Platform</label>
+      <input type="text" maxlength="80" class="form-control" name="platform" value="{{ editing.platform if editing else '' }}" placeholder="e.g. Facebook, TikTok" required>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Spend</label>
+      <input type="number" min="0" step="0.01" class="form-control" name="spend" value="{{ editing.spend if editing else '' }}" placeholder="0.00" required>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Revenue</label>
+      <input type="number" min="0" step="0.01" class="form-control" name="revenue_generated" value="{{ editing.revenue_generated if editing else '' }}" placeholder="0.00" required>
+    </div>
+    <div class="col-md-1">
+      <label class="form-label">Note</label>
+      <input type="text" maxlength="255" class="form-control" name="note" value="{{ editing.note if editing else '' }}" placeholder="Optional">
+    </div>
   </div>
   <button class="btn btn-primary mt-3">{{ 'Update' if editing else 'Save' }} Campaign</button>
   {% if editing %}<a class="btn btn-secondary mt-3" href="{{ url_for('marketing_entry') }}">Cancel</a>{% endif %}

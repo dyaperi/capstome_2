@@ -11,11 +11,12 @@
           <input type="hidden" name="source" value="QR Feedback Form">
           <div class="col-md-6">
             <label class="form-label">Customer Name (Optional)</label>
-            <input class="form-control" name="customer_name" placeholder="Your name">
+            <input type="text" maxlength="150" class="form-control" name="customer_name" placeholder="Your name">
           </div>
           <div class="col-md-6">
             <label class="form-label">Phone Number (Optional)</label>
-            <input class="form-control" name="phone_number" placeholder="e.g. 0123456789">
+            <input type="tel" maxlength="30" pattern="[0-9+\-\s()]{7,30}" inputmode="tel" class="form-control" name="phone_number" placeholder="e.g. 0123456789">
+            <small class="form-help">Digits and + - ( ) only.</small>
           </div>
           <div class="col-md-6">
             <label class="form-label">Visit Date</label>
@@ -23,11 +24,12 @@
           </div>
           <div class="col-md-6">
             <label class="form-label">Menu Item</label>
-            <input class="form-control" name="menu_item" placeholder="What did you order?" required>
+            <input type="text" maxlength="150" class="form-control" name="menu_item" placeholder="What did you order?" required>
           </div>
           <div class="col-md-6">
             <label class="form-label">Order Type</label>
             <select class="form-select" name="order_type" required>
+              <option value="" disabled selected>Select order type</option>
               {% for order in order_types %}
               <option value="{{ order }}">{{ order }}</option>
               {% endfor %}
@@ -35,15 +37,16 @@
           </div>
           <div class="col-md-6">
             <label class="form-label">Rating (1 - 5)</label>
-            <input type="number" min="1" max="5" class="form-control form-control-lg" name="rating_overall" required>
+            <input type="number" min="1" max="5" step="1" class="form-control form-control-lg" name="rating_overall" required>
+            <small class="form-help">1 = Very poor, 5 = Excellent.</small>
           </div>
           <div class="col-12">
             <label class="form-label">Review</label>
-            <textarea class="form-control" name="review_text" rows="4" placeholder="Tell us your experience..." required></textarea>
+            <textarea class="form-control" name="review_text" rows="4" maxlength="1000" placeholder="Tell us your experience..." required></textarea>
           </div>
           <div class="col-md-6">
             <label class="form-label">Receipt Number (Optional)</label>
-            <input class="form-control" name="receipt_number">
+            <input type="text" maxlength="80" class="form-control" name="receipt_number" placeholder="Receipt reference (if available)">
           </div>
           <div class="col-12 d-grid">
             <button class="btn btn-primary btn-lg">Submit Feedback</button>

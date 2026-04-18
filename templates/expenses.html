@@ -4,10 +4,23 @@
 <form method="post" class="card card-body mb-3">
   <input type="hidden" name="expense_id" value="{{ editing.id if editing else '' }}">
   <div class="row g-2">
-    <div class="col-md-3"><label class="form-label">Date</label><input type="date" class="form-control" name="expense_date" value="{{ editing.expense_date if editing else today }}" required></div>
-    <div class="col-md-3"><label class="form-label">Category</label><input class="form-control" name="category" value="{{ editing.category if editing else '' }}" required></div>
-    <div class="col-md-3"><label class="form-label">Amount</label><input step="0.01" class="form-control" name="amount" value="{{ editing.amount if editing else '' }}" required></div>
-    <div class="col-md-3"><label class="form-label">Note</label><input class="form-control" name="note" value="{{ editing.note if editing else '' }}"></div>
+    <div class="col-md-3">
+      <label class="form-label">Date</label>
+      <input type="date" class="form-control" name="expense_date" value="{{ editing.expense_date if editing else today }}" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Category</label>
+      <input type="text" maxlength="80" class="form-control" name="category" value="{{ editing.category if editing else '' }}" placeholder="e.g. Utilities, Rent, Supplies" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Amount</label>
+      <input type="number" min="0" step="0.01" class="form-control" name="amount" value="{{ editing.amount if editing else '' }}" placeholder="0.00" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Note</label>
+      <input type="text" maxlength="255" class="form-control" name="note" value="{{ editing.note if editing else '' }}" placeholder="Optional details">
+      <small class="form-help">Optional context for future review.</small>
+    </div>
   </div>
   <button class="btn btn-primary mt-3">{{ 'Update' if editing else 'Save' }} Expense</button>
   {% if editing %}<a class="btn btn-secondary mt-3" href="{{ url_for('expense_entry') }}">Cancel</a>{% endif %}

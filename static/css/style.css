@@ -33,3 +33,24 @@ body { background: #f7f9fc; }
 .kpi { border: none; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
 .card { border-radius: 12px; }
 table th a { text-decoration: none; color: inherit; }
+.alert {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-left-width: 4px;
+  font-weight: 500;
+}
+.alert-danger { border-left-color: #dc3545; }
+.alert-warning { border-left-color: #ffc107; }
+.alert-success { border-left-color: #198754; }
+.form-help {
+  display: block;
+  color: #6c757d;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+.form-label:has(+ input[required])::after,
+.form-label:has(+ select[required])::after,
+.form-label:has(+ textarea[required])::after {
+  content: " *";
+  color: #dc3545;
+  font-weight: 600;
+}

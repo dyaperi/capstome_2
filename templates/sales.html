@@ -4,13 +4,42 @@
 <form method="post" class="card card-body mb-3">
   <input type="hidden" name="sale_id" value="{{ editing.id if editing else '' }}">
   <div class="row g-2">
-    <div class="col-md-2"><label class="form-label">Date</label><input type="date" class="form-control" name="sale_date" value="{{ editing.sale_date if editing else today }}" required></div>
-    <div class="col-md-2"><label class="form-label">Menu Item</label><select class="form-select" name="menu_item_id">{% for i in items %}<option value="{{ i.id }}" {% if editing and editing.menu_item_id==i.id %}selected{% endif %}>{{ i.item_name }}</option>{% endfor %}</select></div>
-    <div class="col-md-1"><label class="form-label">Qty</label><input type="number" min="1" class="form-control" name="quantity" value="{{ editing.quantity if editing else '' }}" required></div>
-    <div class="col-md-2"><label class="form-label">Unit Price</label><input step="0.01" class="form-control" name="unit_price" value="{{ editing.unit_price if editing else '' }}" required></div>
-    <div class="col-md-2"><label class="form-label">Unit Cost</label><input step="0.01" class="form-control" name="unit_cost" value="{{ editing.unit_cost if editing else '' }}" required></div>
-    <div class="col-md-2"><label class="form-label">Extra Expense</label><input step="0.01" class="form-control" name="extra_expense" value="{{ editing.extra_expense if editing else 0 }}"></div>
-    <div class="col-md-1"><label class="form-label">Channel</label><select class="form-select" name="channel"><option>Walk-in</option><option>Delivery</option><option>Takeaway</option></select></div>
+    <div class="col-md-2">
+      <label class="form-label">Date</label>
+      <input type="date" class="form-control" name="sale_date" value="{{ editing.sale_date if editing else today }}" required>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Menu Item</label>
+      <select class="form-select" name="menu_item_id" required>
+        <option value="" disabled {% if not editing %}selected{% endif %}>Select menu item</option>
+        {% for i in items %}<option value="{{ i.id }}" {% if editing and editing.menu_item_id==i.id %}selected{% endif %}>{{ i.item_name }}</option>{% endfor %}
+      </select>
+      <small class="form-help">Choose one active menu item.</small>
+    </div>
+    <div class="col-md-1">
+      <label class="form-label">Qty</label>
+      <input type="number" min="1" step="1" class="form-control" name="quantity" value="{{ editing.quantity if editing else '' }}" required>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Unit Price</label>
+      <input type="number" min="0" step="0.01" class="form-control" name="unit_price" value="{{ editing.unit_price if editing else '' }}" placeholder="0.00" required>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Unit Cost</label>
+      <input type="number" min="0" step="0.01" class="form-control" name="unit_cost" value="{{ editing.unit_cost if editing else '' }}" placeholder="0.00" required>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Extra Expense</label>
+      <input type="number" min="0" step="0.01" class="form-control" name="extra_expense" value="{{ editing.extra_expense if editing else 0 }}" placeholder="0.00">
+    </div>
+    <div class="col-md-1">
+      <label class="form-label">Channel</label>
+      <select class="form-select" name="channel" required>
+        <option value="Walk-in" {% if not editing or editing.channel == 'Walk-in' %}selected{% endif %}>Walk-in</option>
+        <option value="Delivery" {% if editing and editing.channel == 'Delivery' %}selected{% endif %}>Delivery</option>
+        <option value="Takeaway" {% if editing and editing.channel == 'Takeaway' %}selected{% endif %}>Takeaway</option>
+      </select>
+    </div>
   </div>
   <button class="btn btn-primary mt-3">{{ 'Update' if editing else 'Save' }} Sales</button>
   {% if editing %}<a class="btn btn-secondary mt-3" href="{{ url_for('sales_entry') }}">Cancel</a>{% endif %}

@@ -35,44 +35,56 @@
     <div class="col-md-2">
       <label class="form-label">Client</label>
       <select class="form-select" name="client_id">
-        <option value="">Unassigned</option>
+        <option value="" {% if not editing or not editing.client_id %}selected{% endif %}>Unassigned</option>
         {% for c in clients %}
         <option value="{{ c.id }}" {% if editing and editing.client_id==c.id %}selected{% endif %}>{{ c.full_name }}</option>
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-2"><label class="form-label">Customer Name</label><input class="form-control" name="customer_name" value="{{ editing.customer_name if editing else '' }}"></div>
-    <div class="col-md-2"><label class="form-label">Phone Number</label><input class="form-control" name="phone_number" value="{{ editing.phone_number if editing else '' }}"></div>
+    <div class="col-md-2">
+      <label class="form-label">Customer Name</label>
+      <input type="text" maxlength="150" class="form-control" name="customer_name" value="{{ editing.customer_name if editing else '' }}" placeholder="Optional customer name">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Phone Number</label>
+      <input type="tel" maxlength="30" pattern="[0-9+\-\s()]{7,30}" inputmode="tel" class="form-control" name="phone_number" value="{{ editing.phone_number if editing else '' }}" placeholder="e.g. 0123456789">
+      <small class="form-help">Digits and + - ( ) only.</small>
+    </div>
     <div class="col-md-2"><label class="form-label">Date</label><input type="date" class="form-control" name="review_date" value="{{ editing.review_date if editing else today }}" required></div>
     <div class="col-md-2">
       <label class="form-label">Source</label>
       <select class="form-select" name="source" required>
+        <option value="" disabled {% if not editing %}selected{% endif %}>Select source</option>
         {% for src in review_sources %}
-        <option value="{{ src }}" {% if (editing and editing.source==src) or (not editing and src=='Manual Entry') %}selected{% endif %}>{{ src }}</option>
+        <option value="{{ src }}" {% if editing and editing.source==src %}selected{% endif %}>{{ src }}</option>
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-1"><label class="form-label">Rating</label><input type="number" min="1" max="5" class="form-control" name="rating" value="{{ editing.rating if editing else '' }}" required></div>
+    <div class="col-md-1"><label class="form-label">Rating</label><input type="number" min="1" max="5" step="1" class="form-control" name="rating" value="{{ editing.rating if editing else '' }}" required></div>
     <div class="col-md-2">
       <label class="form-label">Issue Tag</label>
       <select class="form-select" name="issue_tag" required>
+        <option value="" disabled {% if not editing %}selected{% endif %}>Select issue</option>
         {% for tag in issue_tags %}
-        <option value="{{ tag }}" {% if (editing and editing.issue_tag==tag) or (not editing and tag=='General') %}selected{% endif %}>{{ tag }}</option>
+        <option value="{{ tag }}" {% if editing and editing.issue_tag==tag %}selected{% endif %}>{{ tag }}</option>
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-2"><label class="form-label">Menu Item</label><input class="form-control" name="menu_item" value="{{ editing.menu_item if editing else '' }}"></div>
+    <div class="col-md-2"><label class="form-label">Menu Item</label><input type="text" maxlength="150" class="form-control" name="menu_item" value="{{ editing.menu_item if editing else '' }}" placeholder="Optional menu item"></div>
     <div class="col-md-2">
       <label class="form-label">Order Type</label>
       <select class="form-select" name="order_type">
-        <option value="">-</option>
+        <option value="" {% if not editing or not editing.order_type %}selected{% endif %}>Select order type</option>
         {% for order in order_types %}
         <option value="{{ order }}" {% if editing and editing.order_type==order %}selected{% endif %}>{{ order }}</option>
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-2"><label class="form-label">Receipt No.</label><input class="form-control" name="receipt_number" value="{{ editing.receipt_number if editing else '' }}"></div>
-    <div class="col-md-3"><label class="form-label">Review Text</label><input class="form-control" name="review_text" value="{{ editing.review_text if editing else '' }}" required></div>
+    <div class="col-md-2"><label class="form-label">Receipt No.</label><input type="text" maxlength="80" class="form-control" name="receipt_number" value="{{ editing.receipt_number if editing else '' }}" placeholder="Optional receipt reference"></div>
+    <div class="col-md-3">
+      <label class="form-label">Review Text</label>
+      <input type="text" maxlength="1000" class="form-control" name="review_text" value="{{ editing.review_text if editing else '' }}" placeholder="Describe the customer feedback..." required>
+    </div>
   </div>
   <button class="btn btn-primary mt-3">{{ 'Update' if editing else 'Save' }} Review</button>
   {% if editing %}<a class="btn btn-secondary mt-3" href="{{ url_for('review_entry') }}">Cancel</a>{% endif %}

@@ -279,6 +279,58 @@ def request_value(key: str, default=None):
     return request.form.get(key, default)
 
 
+def clean_text(value) -> str:
+    return (value or "").strip()
+
+
+def parse_int_field(raw, field_label: str, *, required: bool = False, min_value: int | None = None, max_value: int | None = None):
+    text = clean_text(raw)
+    if not text:
+        if required:
+            return None, f"{field_label} is required."
+        return None, None
+    try:
+        value = int(text)
+    except (TypeError, ValueError):
+        return None, f"{field_label} must be a whole number."
+    if min_value is not None and value < min_value:
+        return None, f"{field_label} must be at least {min_value}."
+    if max_value is not None and value > max_value:
+        return None, f"{field_label} must be at most {max_value}."
+    return value, None
+
+
+def parse_float_field(raw, field_label: str, *, required: bool = False, min_value: float | None = None):
+    text = clean_text(raw)
+    if not text:
+        if required:
+            return None, f"{field_label} is required."
+        return None, None
+    try:
+        value = float(text)
+    except (TypeError, ValueError):
+        return None, f"{field_label} must be a valid number."
+    if min_value is not None and value < min_value:
+        return None, f"{field_label} must be at least {min_value}."
+    return value, None
+
+
+def parse_date_field(raw, field_label: str, *, required: bool = False, fmt: str = "%Y-%m-%d"):
+    text = clean_text(raw)
+    if not text:
+        if required:
+            return None, f"{field_label} is required."
+        return None, None
+    try:
+        return datetime.strptime(text, fmt).date(), None
+    except ValueError:
+        return None, f"{field_label} must be in YYYY-MM-DD format."
+
+
+def extract_route_errors(*results) -> list[str]:
+    return [err for _, err in results if err]
+
+
 def compute_dashboard_metrics() -> dict:
     sales = Sale.query.all()
     expenses = Expense.query.all()
@@ -604,17 +656,38 @@ def register_routes(app: Flask) -> None:
     def menu_engineering_add():
         if not login_required():
             return redirect(url_for("login"))
+        item_name = clean_text(request.form.get("item_name"))
+        category = clean_text(request.form.get("category"))
+        status = clean_text(request.form.get("status")) or "active"
+        valid_statuses = {"active", "inactive"}
+        selling_price_res = parse_float_field(request.form.get("selling_price"), "Selling price", required=True, min_value=0)
+        ingredient_cost_res = parse_float_field(request.form.get("ingredient_cost", 0), "Ingredient cost", min_value=0)
+        labor_cost_res = parse_float_field(request.form.get("labor_cost", 0), "Labor cost", min_value=0)
+        packaging_cost_res = parse_float_field(request.form.get("packaging_cost", 0), "Packaging cost", min_value=0)
+        overhead_cost_res = parse_float_field(request.form.get("overhead_cost", 0), "Overhead cost", min_value=0)
+        quantity_sold_res = parse_int_field(request.form.get("quantity_sold", 0), "Quantity sold", min_value=0)
+        errors = []
+        if not item_name:
+            errors.append("Item name is required.")
+        if not category:
+            errors.append("Category is required.")
+        if status not in valid_statuses:
+            errors.append("Status must be active or inactive.")
+        errors.extend(extract_route_errors(selling_price_res, ingredient_cost_res, labor_cost_res, packaging_cost_res, overhead_cost_res, quantity_sold_res))
+        if errors:
+            flash(" ".join(errors), "danger")
+            return redirect(url_for("menu_engineering"))
         db.session.add(
             MenuItem(
-                item_name=request.form.get("item_name"),
-                category=request.form.get("category"),
-                selling_price=float(request.form.get("selling_price")),
-                ingredient_cost=float(request.form.get("ingredient_cost", 0) or 0),
-                labor_cost=float(request.form.get("labor_cost", 0) or 0),
-                packaging_cost=float(request.form.get("packaging_cost", 0) or 0),
-                overhead_cost=float(request.form.get("overhead_cost", 0) or 0),
-                quantity_sold=int(request.form.get("quantity_sold", 0) or 0),
-                status=request.form.get("status", "active"),
+                item_name=item_name,
+                category=category,
+                selling_price=selling_price_res[0],
+                ingredient_cost=ingredient_cost_res[0] or 0,
+                labor_cost=labor_cost_res[0] or 0,
+                packaging_cost=packaging_cost_res[0] or 0,
+                overhead_cost=overhead_cost_res[0] or 0,
+                quantity_sold=quantity_sold_res[0] or 0,
+                status=status,
             )
         )
         db.session.commit()
@@ -626,15 +699,36 @@ def register_routes(app: Flask) -> None:
         if not login_required():
             return redirect(url_for("login"))
         item = MenuItem.query.get_or_404(menu_id)
-        item.item_name = request.form.get("item_name")
-        item.category = request.form.get("category")
-        item.selling_price = float(request.form.get("selling_price"))
-        item.ingredient_cost = float(request.form.get("ingredient_cost", 0) or 0)
-        item.labor_cost = float(request.form.get("labor_cost", 0) or 0)
-        item.packaging_cost = float(request.form.get("packaging_cost", 0) or 0)
-        item.overhead_cost = float(request.form.get("overhead_cost", 0) or 0)
-        item.quantity_sold = int(request.form.get("quantity_sold", 0) or 0)
-        item.status = request.form.get("status", "active")
+        item_name = clean_text(request.form.get("item_name"))
+        category = clean_text(request.form.get("category"))
+        status = clean_text(request.form.get("status")) or "active"
+        valid_statuses = {"active", "inactive"}
+        selling_price_res = parse_float_field(request.form.get("selling_price"), "Selling price", required=True, min_value=0)
+        ingredient_cost_res = parse_float_field(request.form.get("ingredient_cost", 0), "Ingredient cost", min_value=0)
+        labor_cost_res = parse_float_field(request.form.get("labor_cost", 0), "Labor cost", min_value=0)
+        packaging_cost_res = parse_float_field(request.form.get("packaging_cost", 0), "Packaging cost", min_value=0)
+        overhead_cost_res = parse_float_field(request.form.get("overhead_cost", 0), "Overhead cost", min_value=0)
+        quantity_sold_res = parse_int_field(request.form.get("quantity_sold", 0), "Quantity sold", min_value=0)
+        errors = []
+        if not item_name:
+            errors.append("Item name is required.")
+        if not category:
+            errors.append("Category is required.")
+        if status not in valid_statuses:
+            errors.append("Status must be active or inactive.")
+        errors.extend(extract_route_errors(selling_price_res, ingredient_cost_res, labor_cost_res, packaging_cost_res, overhead_cost_res, quantity_sold_res))
+        if errors:
+            flash(" ".join(errors), "danger")
+            return redirect(url_for("menu_engineering", edit=menu_id))
+        item.item_name = item_name
+        item.category = category
+        item.selling_price = selling_price_res[0]
+        item.ingredient_cost = ingredient_cost_res[0] or 0
+        item.labor_cost = labor_cost_res[0] or 0
+        item.packaging_cost = packaging_cost_res[0] or 0
+        item.overhead_cost = overhead_cost_res[0] or 0
+        item.quantity_sold = quantity_sold_res[0] or 0
+        item.status = status
         db.session.commit()
         flash("Menu item updated.", "success")
         return redirect(url_for("menu_engineering"))
@@ -659,18 +753,43 @@ def register_routes(app: Flask) -> None:
         items = MenuItem.query.filter_by(status="active").all()
 
         if request.method == "POST":
-            sale_id = request.form.get("sale_id")
+            sale_id_raw = clean_text(request.form.get("sale_id"))
+            sale_id_res = parse_int_field(sale_id_raw, "Sale ID")
+            sale_date_res = parse_date_field(request.form.get("sale_date"), "Sale date", required=True)
+            menu_item_id_res = parse_int_field(request.form.get("menu_item_id"), "Menu item", required=True, min_value=1)
+            quantity_res = parse_int_field(request.form.get("quantity"), "Quantity", required=True, min_value=1)
+            unit_price_res = parse_float_field(request.form.get("unit_price"), "Unit price", required=True, min_value=0)
+            unit_cost_res = parse_float_field(request.form.get("unit_cost"), "Unit cost", required=True, min_value=0)
+            extra_expense_res = parse_float_field(request.form.get("extra_expense", 0), "Extra expense", min_value=0)
+            channel = clean_text(request.form.get("channel")) or "Walk-in"
+            valid_channels = {"Walk-in", "Delivery", "Takeaway"}
+            errors = extract_route_errors(
+                sale_id_res,
+                sale_date_res,
+                menu_item_id_res,
+                quantity_res,
+                unit_price_res,
+                unit_cost_res,
+                extra_expense_res,
+            )
+            if channel not in valid_channels:
+                errors.append("Channel must be Walk-in, Delivery, or Takeaway.")
+            if menu_item_id_res[0] is not None and not MenuItem.query.get(menu_item_id_res[0]):
+                errors.append("Selected menu item does not exist.")
+            if errors:
+                flash(" ".join(errors), "danger")
+                return redirect(url_for("sales_entry"))
             payload = {
-                "sale_date": datetime.strptime(request.form.get("sale_date"), "%Y-%m-%d").date(),
-                "menu_item_id": int(request.form.get("menu_item_id")),
-                "quantity": int(request.form.get("quantity")),
-                "unit_price": float(request.form.get("unit_price")),
-                "unit_cost": float(request.form.get("unit_cost")),
-                "extra_expense": float(request.form.get("extra_expense", 0) or 0),
-                "channel": request.form.get("channel", "Walk-in"),
+                "sale_date": sale_date_res[0],
+                "menu_item_id": menu_item_id_res[0],
+                "quantity": quantity_res[0],
+                "unit_price": unit_price_res[0],
+                "unit_cost": unit_cost_res[0],
+                "extra_expense": extra_expense_res[0] or 0,
+                "channel": channel,
             }
-            if sale_id:
-                sale = Sale.query.get_or_404(int(sale_id))
+            if sale_id_raw:
+                sale = Sale.query.get_or_404(sale_id_res[0])
                 for k, v in payload.items():
                     setattr(sale, k, v)
                 flash("Sales record updated.", "success")
@@ -699,15 +818,26 @@ def register_routes(app: Flask) -> None:
         edit_id = request.args.get("edit", type=int)
         editing = Expense.query.get(edit_id) if edit_id else None
         if request.method == "POST":
-            expense_id = request.form.get("expense_id")
+            expense_id_raw = clean_text(request.form.get("expense_id"))
+            expense_id_res = parse_int_field(expense_id_raw, "Expense ID")
+            expense_date_res = parse_date_field(request.form.get("expense_date"), "Expense date", required=True)
+            category = clean_text(request.form.get("category"))
+            amount_res = parse_float_field(request.form.get("amount"), "Amount", required=True, min_value=0)
+            note = clean_text(request.form.get("note"))
+            errors = extract_route_errors(expense_id_res, expense_date_res, amount_res)
+            if not category:
+                errors.append("Category is required.")
+            if errors:
+                flash(" ".join(errors), "danger")
+                return redirect(url_for("expense_entry"))
             payload = {
-                "expense_date": datetime.strptime(request.form.get("expense_date"), "%Y-%m-%d").date(),
-                "category": request.form.get("category"),
-                "amount": float(request.form.get("amount")),
-                "note": request.form.get("note"),
+                "expense_date": expense_date_res[0],
+                "category": category,
+                "amount": amount_res[0],
+                "note": note,
             }
-            if expense_id:
-                expense = Expense.query.get_or_404(int(expense_id))
+            if expense_id_raw:
+                expense = Expense.query.get_or_404(expense_id_res[0])
                 for k, v in payload.items():
                     setattr(expense, k, v)
                 flash("Expense record updated.", "success")
@@ -736,17 +866,32 @@ def register_routes(app: Flask) -> None:
         edit_id = request.args.get("edit", type=int)
         editing = MarketingCampaign.query.get(edit_id) if edit_id else None
         if request.method == "POST":
-            campaign_id = request.form.get("campaign_id")
+            campaign_id_raw = clean_text(request.form.get("campaign_id"))
+            campaign_id_res = parse_int_field(campaign_id_raw, "Campaign ID")
+            campaign_date_res = parse_date_field(request.form.get("campaign_date"), "Campaign date", required=True)
+            campaign_name = clean_text(request.form.get("campaign_name"))
+            platform = clean_text(request.form.get("platform"))
+            spend_res = parse_float_field(request.form.get("spend"), "Spend", required=True, min_value=0)
+            revenue_res = parse_float_field(request.form.get("revenue_generated"), "Revenue", required=True, min_value=0)
+            note = clean_text(request.form.get("note"))
+            errors = extract_route_errors(campaign_id_res, campaign_date_res, spend_res, revenue_res)
+            if not campaign_name:
+                errors.append("Campaign name is required.")
+            if not platform:
+                errors.append("Platform is required.")
+            if errors:
+                flash(" ".join(errors), "danger")
+                return redirect(url_for("marketing_entry"))
             payload = {
-                "campaign_date": datetime.strptime(request.form.get("campaign_date"), "%Y-%m-%d").date(),
-                "campaign_name": request.form.get("campaign_name"),
-                "platform": request.form.get("platform"),
-                "spend": float(request.form.get("spend")),
-                "revenue_generated": float(request.form.get("revenue_generated")),
-                "note": request.form.get("note"),
+                "campaign_date": campaign_date_res[0],
+                "campaign_name": campaign_name,
+                "platform": platform,
+                "spend": spend_res[0],
+                "revenue_generated": revenue_res[0],
+                "note": note,
             }
-            if campaign_id:
-                campaign = MarketingCampaign.query.get_or_404(int(campaign_id))
+            if campaign_id_raw:
+                campaign = MarketingCampaign.query.get_or_404(campaign_id_res[0])
                 for k, v in payload.items():
                     setattr(campaign, k, v)
                 flash("Marketing campaign updated.", "success")
@@ -775,33 +920,62 @@ def register_routes(app: Flask) -> None:
         edit_id = request.args.get("edit", type=int)
         editing = CustomerReview.query.get(edit_id) if edit_id else None
         if request.method == "POST":
-            review_text = request.form.get("review_text", "")
-            rating = int(request.form.get("rating"))
-            label, score = analyze_sentiment(review_text, rating)
-            review_id = request.form.get("review_id")
-            source_value = (request.form.get("source") or "").strip()
+            review_id_raw = clean_text(request.form.get("review_id"))
+            review_id_res = parse_int_field(review_id_raw, "Review ID")
+            review_text = clean_text(request.form.get("review_text", ""))
+            review_date_res = parse_date_field(request.form.get("review_date"), "Review date", required=True)
+            rating_res = parse_int_field(request.form.get("rating"), "Rating", required=True, min_value=1, max_value=5)
+            client_id_raw = clean_text(request.form.get("client_id"))
+            client_id_res = parse_int_field(client_id_raw, "Client", min_value=1)
+            customer_name = clean_text(request.form.get("customer_name")) or None
+            phone_number = clean_text(request.form.get("phone_number")) or None
+            menu_item = clean_text(request.form.get("menu_item")) or None
+            order_type_raw = clean_text(request.form.get("order_type"))
+            order_type = order_type_raw or None
+            source_value = clean_text(request.form.get("source"))
             source = source_value if source_value else "Manual Entry"
-            issue_tag = request.form.get("issue_tag") or detect_issue_tag(review_text)
+            issue_tag_raw = clean_text(request.form.get("issue_tag"))
+            issue_tag = issue_tag_raw if issue_tag_raw else detect_issue_tag(review_text)
+            submission_channel = clean_text(request.form.get("submission_channel")) or "manual"
+            valid_submission_channels = {"manual", "qr"}
+            errors = extract_route_errors(review_id_res, review_date_res, rating_res, client_id_res)
+            if not review_text:
+                errors.append("Review text is required.")
+            if source not in REVIEW_SOURCES:
+                errors.append("Invalid review source selected.")
+            if issue_tag not in ISSUE_TAGS:
+                errors.append("Invalid issue tag selected.")
+            if order_type and order_type not in ORDER_TYPES:
+                errors.append("Invalid order type selected.")
+            if submission_channel not in valid_submission_channels:
+                errors.append("Invalid submission channel selected.")
+            if client_id_res[0] is not None and not User.query.filter_by(id=client_id_res[0], role=RoleService.CLIENT).first():
+                errors.append("Selected client is invalid.")
+            if errors:
+                flash(" ".join(errors), "danger")
+                return redirect(url_for("review_entry"))
+            rating = rating_res[0]
+            label, score = analyze_sentiment(review_text, rating)
             urgency_level = determine_urgency_level(label, rating, issue_tag, review_text)
             payload = {
-                "review_date": datetime.strptime(request.form.get("review_date"), "%Y-%m-%d").date(),
-                "client_id": request.form.get("client_id", type=int),
-                "customer_name": request.form.get("customer_name"),
-                "phone_number": request.form.get("phone_number"),
-                "menu_item": request.form.get("menu_item"),
-                "order_type": request.form.get("order_type"),
+                "review_date": review_date_res[0],
+                "client_id": client_id_res[0],
+                "customer_name": customer_name,
+                "phone_number": phone_number,
+                "menu_item": menu_item,
+                "order_type": order_type,
                 "source": source,
                 "rating": rating,
                 "review_text": review_text,
-                "receipt_number": request.form.get("receipt_number"),
+                "receipt_number": clean_text(request.form.get("receipt_number")) or None,
                 "issue_tag": issue_tag,
                 "urgency_level": urgency_level,
-                "submission_channel": request.form.get("submission_channel", "manual"),
+                "submission_channel": submission_channel,
                 "sentiment_label": label,
                 "sentiment_score": score,
             }
-            if review_id:
-                review = CustomerReview.query.get_or_404(int(review_id))
+            if review_id_raw:
+                review = CustomerReview.query.get_or_404(review_id_res[0])
                 for k, v in payload.items():
                     setattr(review, k, v)
                 flash("Customer review updated.", "success")
@@ -852,34 +1026,33 @@ def register_routes(app: Flask) -> None:
     def public_feedback(client_id: int):
         client = User.query.filter_by(id=client_id, role=RoleService.CLIENT).first_or_404()
         if request.method == "POST":
-            visit_date_raw = (request.form.get("visit_date") or "").strip()
-            menu_item = (request.form.get("menu_item") or "").strip()
-            order_type = (request.form.get("order_type") or "").strip()
-            review_text = (request.form.get("review_text") or "").strip()
-            rating_raw = request.form.get("rating_overall")
-            if not visit_date_raw or not menu_item or not order_type or not review_text or not rating_raw:
+            visit_date_res = parse_date_field(request.form.get("visit_date"), "Visit date", required=True)
+            menu_item = clean_text(request.form.get("menu_item"))
+            order_type = clean_text(request.form.get("order_type"))
+            review_text = clean_text(request.form.get("review_text"))
+            rating_res = parse_int_field(request.form.get("rating_overall"), "Rating", required=True, min_value=1, max_value=5)
+            errors = extract_route_errors(visit_date_res, rating_res)
+            if not menu_item:
+                errors.append("Menu item is required.")
+            if not review_text:
+                errors.append("Review text is required.")
+            if not order_type:
+                errors.append("Order type is required.")
+            elif order_type not in ORDER_TYPES:
+                errors.append("Please provide a valid order type.")
+            if errors:
+                flash(" ".join(errors), "danger")
+                return render_template(
+                    "feedback_form.html",
+                    client=client,
+                    order_types=ORDER_TYPES,
+                    issue_tags=ISSUE_TAGS,
+                    review_sources=REVIEW_SOURCES,
+                )
+            visit_date = visit_date_res[0]
+            rating = rating_res[0]
+            if visit_date is None or rating is None:
                 flash("Please complete all required fields.", "danger")
-                return render_template(
-                    "feedback_form.html",
-                    client=client,
-                    order_types=ORDER_TYPES,
-                    issue_tags=ISSUE_TAGS,
-                    review_sources=REVIEW_SOURCES,
-                )
-            try:
-                visit_date = datetime.strptime(visit_date_raw, "%Y-%m-%d").date()
-                rating = int(rating_raw)
-            except ValueError:
-                flash("Invalid date or rating format.", "danger")
-                return render_template(
-                    "feedback_form.html",
-                    client=client,
-                    order_types=ORDER_TYPES,
-                    issue_tags=ISSUE_TAGS,
-                    review_sources=REVIEW_SOURCES,
-                )
-            if order_type not in ORDER_TYPES or rating < 1 or rating > 5:
-                flash("Please provide a valid order type and rating.", "danger")
                 return render_template(
                     "feedback_form.html",
                     client=client,
@@ -920,51 +1093,65 @@ def register_routes(app: Flask) -> None:
 
     @app.route("/reviews/submit", methods=["POST"])
     def review_submit():
-        client_id = request_value("client_id")
-        if client_id is not None:
-            try:
-                client_id = int(client_id)
-            except (TypeError, ValueError):
-                return jsonify({"ok": False, "error": "client_id must be numeric"}), 400
-        review_text = (request_value("review_text", "") or "").strip()
+        client_id_raw = clean_text(request_value("client_id"))
+        client_id_res = parse_int_field(client_id_raw, "client_id", min_value=1)
+        if client_id_res[1]:
+            return jsonify({"ok": False, "error": "client_id must be numeric"}), 400
+        client_id = client_id_res[0]
+        if client_id is not None and not User.query.filter_by(id=client_id, role=RoleService.CLIENT).first():
+            return jsonify({"ok": False, "error": "client_id is invalid"}), 400
+        review_text = clean_text(request_value("review_text", ""))
         if not review_text:
             return jsonify({"ok": False, "error": "review_text is required"}), 400
-        try:
-            rating = int(request_value("rating_overall", request_value("rating", 3)))
-        except (TypeError, ValueError):
+        rating_res = parse_int_field(
+            request_value("rating_overall", request_value("rating", 3)),
+            "rating",
+            required=True,
+            min_value=1,
+            max_value=5,
+        )
+        if rating_res[1]:
             return jsonify({"ok": False, "error": "rating must be between 1 and 5"}), 400
-        if rating < 1 or rating > 5:
-            return jsonify({"ok": False, "error": "rating must be between 1 and 5"}), 400
-        visit_date_raw = (request_value("visit_date", request_value("review_date", "")) or "").strip()
+        rating = rating_res[0]
+        visit_date_raw = clean_text(request_value("visit_date", request_value("review_date", "")))
         review_date = date.today()
         if visit_date_raw:
-            try:
-                review_date = datetime.strptime(visit_date_raw, "%Y-%m-%d").date()
-            except ValueError:
+            visit_date_res = parse_date_field(visit_date_raw, "visit_date", required=True)
+            if visit_date_res[1]:
                 return jsonify({"ok": False, "error": "visit_date must be YYYY-MM-DD"}), 400
+            review_date = visit_date_res[0]
         label, score = analyze_sentiment(review_text, rating)
-        issue_tag = request_value("issue_tag") or detect_issue_tag(review_text)
-        source = (request_value("source", "QR Feedback Form") or "QR Feedback Form").strip() or "QR Feedback Form"
-        order_type = request_value("order_type")
+        issue_tag_raw = clean_text(request_value("issue_tag"))
+        issue_tag = issue_tag_raw or detect_issue_tag(review_text)
+        if issue_tag not in ISSUE_TAGS:
+            return jsonify({"ok": False, "error": "issue_tag is invalid"}), 400
+        source = clean_text(request_value("source", "QR Feedback Form")) or "QR Feedback Form"
+        if source not in REVIEW_SOURCES:
+            return jsonify({"ok": False, "error": "source is invalid"}), 400
+        order_type_raw = clean_text(request_value("order_type"))
+        order_type = order_type_raw or None
         if order_type and order_type not in ORDER_TYPES:
-            order_type = None
+            return jsonify({"ok": False, "error": "order_type is invalid"}), 400
+        submission_channel = clean_text(request_value("submission_channel", "qr")) or "qr"
+        if submission_channel not in {"manual", "qr"}:
+            return jsonify({"ok": False, "error": "submission_channel is invalid"}), 400
         urgency_level = determine_urgency_level(label, rating, issue_tag, review_text)
         review = CustomerReview(
             client_id=client_id,
-            customer_name=request_value("customer_name"),
-            phone_number=request_value("phone_number"),
+            customer_name=clean_text(request_value("customer_name")) or None,
+            phone_number=clean_text(request_value("phone_number")) or None,
             review_date=review_date,
-            menu_item=request_value("menu_item"),
+            menu_item=clean_text(request_value("menu_item")) or None,
             order_type=order_type,
             rating=rating,
             review_text=review_text,
-            receipt_number=request_value("receipt_number"),
+            receipt_number=clean_text(request_value("receipt_number")) or None,
             source=source,
             sentiment_label=label,
             sentiment_score=score,
             issue_tag=issue_tag,
             urgency_level=urgency_level,
-            submission_channel=request_value("submission_channel", "qr"),
+            submission_channel=submission_channel,
         )
         db.session.add(review)
         db.session.commit()
