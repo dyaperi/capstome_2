@@ -1,9 +1,40 @@
 {% extends 'base.html' %}
 {% block content %}
-<h3>Forecast Page</h3>
-<div class="row g-3">
-  <div class="col-md-6"><canvas id="forecastRevenue"></canvas></div>
-  <div class="col-md-6"><canvas id="forecastCash"></canvas></div>
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Forecast</p>
+    <h2>Forecast Page</h2>
+    <p class="text-muted mb-0">Projected revenue and cash flow based on recent business activity.</p>
+  </div>
+</div>
+
+<div class="row g-3 forecast-chart-grid">
+  <div class="col-lg-6">
+    <section class="section-card chart-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Forecast Revenue</h5>
+          <p>Expected revenue across the upcoming forecast window.</p>
+        </div>
+      </div>
+      <div class="financial-line-chart-container">
+        <canvas id="forecastRevenue"></canvas>
+      </div>
+    </section>
+  </div>
+  <div class="col-lg-6">
+    <section class="section-card chart-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Forecast Cash Flow</h5>
+          <p>Projected cash position after forecasted expenses.</p>
+        </div>
+      </div>
+      <div class="financial-line-chart-container">
+        <canvas id="forecastCash"></canvas>
+      </div>
+    </section>
+  </div>
 </div>
 <script id="chart-data" type="application/json">{{ metrics|tojson }}</script>
 {% endblock %}

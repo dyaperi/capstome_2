@@ -1,7 +1,35 @@
 {% extends 'base.html' %}
 {% block content %}
-<h3>Analytics Page</h3>
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Analytics</p>
+    <h2>Analytics Page</h2>
+  </div>
+</div>
 <div class="alert alert-info">Financial and performance analytics from MySQL-stored data.</div>
-<div class="row"><div class="col-md-12"><canvas id="revenueChart"></canvas></div></div>
+
+<section class="section-card chart-card">
+  <div class="section-card__header">
+    <div>
+      <h5>Monthly Revenue Trend</h5>
+      <p>Detailed month-over-month trend analysis.</p>
+    </div>
+  </div>
+  <div class="monthly-revenue-chart-container">
+    <canvas id="monthlyRevenueTrendChart"></canvas>
+  </div>
+</section>
+
+<section class="section-card chart-card">
+  <div class="section-card__header">
+    <div>
+      <h5>Revenue Trend</h5>
+      <p>Daily revenue movement with cleaner date spacing.</p>
+    </div>
+  </div>
+  <div class="financial-line-chart-container financial-line-chart-container--wide">
+    <canvas id="revenueChart"></canvas>
+  </div>
+</section>
 <script id="chart-data" type="application/json">{{ metrics|tojson }}</script>
 {% endblock %}

@@ -1,33 +1,49 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-lg-7 col-md-9">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h4 class="mb-1">{{ client.full_name }} Feedback Form</h4>
-        <p class="text-muted">Thank you for supporting us. Share your experience below.</p>
-        <form method="post" class="row g-3">
-          <input type="hidden" name="client_id" value="{{ client.id }}">
-          <input type="hidden" name="source" value="QR Feedback Form">
+<div class="feedback-page">
+  <div class="feedback-shell">
+    <div class="feedback-intro">
+      <p class="eyebrow">Customer feedback</p>
+      <h2>{{ client.full_name }}</h2>
+      <p>Tell us what went well or what we can improve. It only takes a minute.</p>
+    </div>
+
+    <section class="section-card feedback-card">
+      <div class="section-card__header">
+        <div>
+          <h5>Share your visit experience</h5>
+          <p>Your feedback helps the team improve food, service, delivery, and packaging.</p>
+        </div>
+      </div>
+      <form method="post" class="entry-form">
+        <input type="hidden" name="client_id" value="{{ client.id }}">
+        <input type="hidden" name="source" value="QR Feedback Form">
+
+        <div class="form-section-title">About you</div>
+        <div class="row g-3">
           <div class="col-md-6">
-            <label class="form-label">Customer Name (Optional)</label>
+            <label class="form-label">Name <span class="optional-label">optional</span></label>
             <input type="text" maxlength="150" class="form-control" name="customer_name" placeholder="Your name">
           </div>
           <div class="col-md-6">
-            <label class="form-label">Phone Number (Optional)</label>
+            <label class="form-label">Phone number <span class="optional-label">optional</span></label>
             <input type="tel" maxlength="30" pattern="[0-9+\-\s()]{7,30}" inputmode="tel" class="form-control" name="phone_number" placeholder="e.g. 0123456789">
-            <small class="form-help">Digits and + - ( ) only.</small>
+            <small class="form-help">Only used if the team needs to follow up.</small>
           </div>
+        </div>
+
+        <div class="form-section-title">Your order</div>
+        <div class="row g-3">
           <div class="col-md-6">
-            <label class="form-label">Visit Date</label>
+            <label class="form-label">Visit date</label>
             <input type="date" class="form-control" name="visit_date" required>
           </div>
           <div class="col-md-6">
-            <label class="form-label">Menu Item</label>
+            <label class="form-label">Menu item</label>
             <input type="text" maxlength="150" class="form-control" name="menu_item" placeholder="What did you order?" required>
           </div>
           <div class="col-md-6">
-            <label class="form-label">Order Type</label>
+            <label class="form-label">Order type</label>
             <select class="form-select" name="order_type" required>
               <option value="" disabled selected>Select order type</option>
               {% for order in order_types %}
@@ -36,24 +52,35 @@
             </select>
           </div>
           <div class="col-md-6">
-            <label class="form-label">Rating (1 - 5)</label>
-            <input type="number" min="1" max="5" step="1" class="form-control form-control-lg" name="rating_overall" required>
-            <small class="form-help">1 = Very poor, 5 = Excellent.</small>
+            <label class="form-label">Receipt number <span class="optional-label">optional</span></label>
+            <input type="text" maxlength="80" class="form-control" name="receipt_number" placeholder="Receipt reference">
           </div>
-          <div class="col-12">
+        </div>
+
+        <div class="form-section-title">Your rating</div>
+        <div class="row g-3">
+          <div class="col-md-5">
+            <label class="form-label">Overall rating</label>
+            <select class="form-select form-select-lg" name="rating_overall" required>
+              <option value="" disabled selected>Select rating</option>
+              <option value="5">5 - Excellent</option>
+              <option value="4">4 - Good</option>
+              <option value="3">3 - Okay</option>
+              <option value="2">2 - Poor</option>
+              <option value="1">1 - Very poor</option>
+            </select>
+          </div>
+          <div class="col-md-7">
             <label class="form-label">Review</label>
-            <textarea class="form-control" name="review_text" rows="4" maxlength="1000" placeholder="Tell us your experience..." required></textarea>
+            <textarea class="form-control" name="review_text" rows="4" maxlength="1000" placeholder="What should we know about your experience?" required></textarea>
           </div>
-          <div class="col-md-6">
-            <label class="form-label">Receipt Number (Optional)</label>
-            <input type="text" maxlength="80" class="form-control" name="receipt_number" placeholder="Receipt reference (if available)">
-          </div>
-          <div class="col-12 d-grid">
-            <button class="btn btn-primary btn-lg">Submit Feedback</button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+
+        <div class="form-actions form-actions--full">
+          <button class="btn btn-primary btn-lg">Submit feedback</button>
+        </div>
+      </form>
+    </section>
   </div>
 </div>
 {% endblock %}

@@ -1,93 +1,164 @@
 {% extends 'base.html' %}
 {% block content %}
-<h3>Customer Review Entry</h3>
-{% if qr_preview %}
-<div class="card mb-3">
-  <div class="card-body d-flex flex-wrap gap-3 align-items-center">
-    <img src="{{ qr_preview.qr_image_url }}" alt="QR Feedback Form" width="140" height="140" class="border rounded">
-    <div>
-      <h6 class="mb-1">Public QR Feedback Form</h6>
-      <p class="text-muted mb-2">Client: {{ qr_preview.client_name }} | Source label: <span class="badge text-bg-info">QR Feedback Form</span></p>
-      <a class="btn btn-sm btn-outline-primary" href="{{ qr_preview.feedback_url }}" target="_blank" rel="noopener">Open Public Feedback Page</a>
-      <div class="small text-muted mt-2">{{ qr_preview.feedback_url }}</div>
-    </div>
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Customer voice</p>
+    <h2>{{ 'Edit Customer Review' if editing else 'Customer Reviews' }}</h2>
+    <p class="text-muted mb-0">Capture feedback from QR forms, delivery platforms, and manual entries in one place.</p>
   </div>
+  <form class="toolbar-form" method="get" action="{{ url_for('review_entry') }}">
+    <label class="form-label mb-0" for="source-filter">Source</label>
+    <select id="source-filter" class="form-select" name="source" onchange="this.form.submit()">
+      <option value="All" {% if selected_source=='All' %}selected{% endif %}>All sources</option>
+      {% for source in review_sources %}
+      <option value="{{ source }}" {% if selected_source==source %}selected{% endif %}>{{ source }}</option>
+      {% endfor %}
+    </select>
+  </form>
 </div>
+
+<section class="section-card">
+  <div class="section-card__header">
+    <div>
+      <h5>{{ 'Update review' if editing else 'Add review' }}</h5>
+      <p>Use this form for reviews entered by staff. QR feedback is captured automatically.</p>
+    </div>
+  </div>
+  <form method="post" class="entry-form">
+    <input type="hidden" name="review_id" value="{{ editing.id if editing else '' }}">
+    <input type="hidden" name="submission_channel" value="{{ editing.submission_channel if editing else 'manual' }}">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Review date</label>
+        <input type="date" class="form-control" name="review_date" value="{{ editing.review_date if editing else today }}" required>
+      </div>
+      {% if clients %}
+      <input type="hidden" name="client_id" value="{{ clients[0].id }}">
+      <div class="col-md-3">
+        <label class="form-label">Client</label>
+        <input class="form-control" value="{{ clients[0].full_name }}" readonly>
+      </div>
+      {% endif %}
+      <div class="col-md-3">
+        <label class="form-label">Source</label>
+        <select class="form-select" name="source" required>
+          {% for source in review_sources %}
+          <option value="{{ source }}" {% if editing and editing.source==source or (not editing and source=='Manual Entry') %}selected{% endif %}>{{ source }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Rating</label>
+        <select class="form-select" name="rating" required>
+          <option value="">Select rating</option>
+          {% for value in [5, 4, 3, 2, 1] %}
+          <option value="{{ value }}" {% if editing and editing.rating==value %}selected{% endif %}>{{ value }} - {{ 'Excellent' if value==5 else 'Good' if value==4 else 'Okay' if value==3 else 'Poor' if value==2 else 'Very poor' }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Customer name</label>
+        <input class="form-control" name="customer_name" value="{{ editing.customer_name if editing else '' }}" placeholder="Optional">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Phone number</label>
+        <input class="form-control" name="phone_number" value="{{ editing.phone_number if editing else '' }}" placeholder="Optional">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Receipt number</label>
+        <input class="form-control" name="receipt_number" value="{{ editing.receipt_number if editing else '' }}" placeholder="Optional">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Menu item</label>
+        <input class="form-control" name="menu_item" value="{{ editing.menu_item if editing else '' }}" placeholder="e.g. Nasi Goreng">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Order type</label>
+        <select class="form-select" name="order_type">
+          <option value="">Not specified</option>
+          {% for order in order_types %}
+          <option value="{{ order }}" {% if editing and editing.order_type==order %}selected{% endif %}>{{ order }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Issue tag</label>
+        <select class="form-select" name="issue_tag">
+          <option value="">Auto-detect from review</option>
+          {% for tag in issue_tags %}
+          <option value="{{ tag }}" {% if editing and editing.issue_tag==tag %}selected{% endif %}>{{ tag }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Review text</label>
+        <textarea class="form-control" name="review_text" rows="4" maxlength="1000" placeholder="Paste or type the customer comment here..." required>{{ editing.review_text if editing else '' }}</textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary">{{ 'Update review' if editing else 'Save review' }}</button>
+      {% if editing %}<a class="btn btn-outline-secondary" href="{{ url_for('review_entry') }}">Cancel edit</a>{% endif %}
+    </div>
+  </form>
+</section>
+
+{% if session.get('role') == 'admin_analyst' %}
+<section class="section-card import-panel">
+  <div class="section-card__header">
+    <div>
+      <h5>Optional Excel import</h5>
+      <p>Bulk upload manual customer reviews. Sentiment and issue urgency are calculated during import.</p>
+    </div>
+  </div>
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('import_excel', module_key='reviews') }}" class="import-form">
+    <div>
+      <strong>Template columns</strong>
+      <p>{{ import_specs.reviews.columns|join(', ') }}</p>
+    </div>
+    <input class="form-control" type="file" name="excel_file" accept=".xlsx,.xls" required>
+    <button class="btn btn-outline-primary">Import Excel</button>
+  </form>
+</section>
 {% endif %}
-<form method="get" class="card card-body mb-3">
-  <div class="row g-2 align-items-end">
-    <div class="col-md-3">
-      <label class="form-label">Filter by Source</label>
-      <select class="form-select" name="source">
-        <option value="All" {% if selected_source == 'All' %}selected{% endif %}>All Sources</option>
-        {% for src in review_sources %}
-        <option value="{{ src }}" {% if selected_source == src %}selected{% endif %}>{{ src }}</option>
-        {% endfor %}
-      </select>
+
+<section class="section-card">
+  <div class="section-card__header">
+    <div>
+      <h5>Recent reviews</h5>
+      <p>Filter by source to focus on platform-specific customer feedback.</p>
     </div>
-    <div class="col-md-2"><button class="btn btn-outline-primary">Apply Filter</button></div>
-  </div>
-</form>
-<form method="post" class="card card-body mb-3">
-  <input type="hidden" name="review_id" value="{{ editing.id if editing else '' }}">
-  <input type="hidden" name="submission_channel" value="{{ editing.submission_channel if editing else 'manual' }}">
-  <div class="row g-2">
-    <div class="col-md-2">
-      <label class="form-label">Client</label>
-      <select class="form-select" name="client_id">
-        <option value="" {% if not editing or not editing.client_id %}selected{% endif %}>Unassigned</option>
-        {% for c in clients %}
-        <option value="{{ c.id }}" {% if editing and editing.client_id==c.id %}selected{% endif %}>{{ c.full_name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-2">
-      <label class="form-label">Customer Name</label>
-      <input type="text" maxlength="150" class="form-control" name="customer_name" value="{{ editing.customer_name if editing else '' }}" placeholder="Optional customer name">
-    </div>
-    <div class="col-md-2">
-      <label class="form-label">Phone Number</label>
-      <input type="tel" maxlength="30" pattern="[0-9+\-\s()]{7,30}" inputmode="tel" class="form-control" name="phone_number" value="{{ editing.phone_number if editing else '' }}" placeholder="e.g. 0123456789">
-      <small class="form-help">Digits and + - ( ) only.</small>
-    </div>
-    <div class="col-md-2"><label class="form-label">Date</label><input type="date" class="form-control" name="review_date" value="{{ editing.review_date if editing else today }}" required></div>
-    <div class="col-md-2">
-      <label class="form-label">Source</label>
-      <select class="form-select" name="source" required>
-        <option value="" disabled {% if not editing %}selected{% endif %}>Select source</option>
-        {% for src in review_sources %}
-        <option value="{{ src }}" {% if editing and editing.source==src %}selected{% endif %}>{{ src }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-1"><label class="form-label">Rating</label><input type="number" min="1" max="5" step="1" class="form-control" name="rating" value="{{ editing.rating if editing else '' }}" required></div>
-    <div class="col-md-2">
-      <label class="form-label">Issue Tag</label>
-      <select class="form-select" name="issue_tag" required>
-        <option value="" disabled {% if not editing %}selected{% endif %}>Select issue</option>
-        {% for tag in issue_tags %}
-        <option value="{{ tag }}" {% if editing and editing.issue_tag==tag %}selected{% endif %}>{{ tag }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-2"><label class="form-label">Menu Item</label><input type="text" maxlength="150" class="form-control" name="menu_item" value="{{ editing.menu_item if editing else '' }}" placeholder="Optional menu item"></div>
-    <div class="col-md-2">
-      <label class="form-label">Order Type</label>
-      <select class="form-select" name="order_type">
-        <option value="" {% if not editing or not editing.order_type %}selected{% endif %}>Select order type</option>
-        {% for order in order_types %}
-        <option value="{{ order }}" {% if editing and editing.order_type==order %}selected{% endif %}>{{ order }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-2"><label class="form-label">Receipt No.</label><input type="text" maxlength="80" class="form-control" name="receipt_number" value="{{ editing.receipt_number if editing else '' }}" placeholder="Optional receipt reference"></div>
-    <div class="col-md-3">
-      <label class="form-label">Review Text</label>
-      <input type="text" maxlength="1000" class="form-control" name="review_text" value="{{ editing.review_text if editing else '' }}" placeholder="Describe the customer feedback..." required>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('export_reviews_excel', source=selected_source) }}">Export Excel</a>
+      {% if qr_preview %}
+      <a class="btn btn-sm btn-outline-primary" href="{{ qr_preview.feedback_url }}" target="_blank" rel="noopener">Open QR form</a>
+      {% endif %}
     </div>
   </div>
-  <button class="btn btn-primary mt-3">{{ 'Update' if editing else 'Save' }} Review</button>
-  {% if editing %}<a class="btn btn-secondary mt-3" href="{{ url_for('review_entry') }}">Cancel</a>{% endif %}
-</form>
-<table class="table table-sm table-striped"><thead><tr><th>Date</th><th>Client</th><th>Source</th><th>Channel</th><th>Rating</th><th>Issue Tag</th><th>Urgency</th><th>Text</th><th>Actions</th></tr></thead><tbody>{% for r in recent %}<tr><td>{{ r.review_date }}</td><td>{{ r.client.full_name if r.client else '-' }}</td><td><span class="badge {% if r.source=='QR Feedback Form' %}text-bg-info{% else %}text-bg-secondary{% endif %}">{{ r.source }}</span></td><td>{{ r.submission_channel or 'manual' }}</td><td>{{ r.rating }}</td><td>{{ r.issue_tag or 'General' }}</td><td><span class="badge {% if r.urgency_level=='high' %}text-bg-danger{% elif r.urgency_level=='medium' %}text-bg-warning{% else %}text-bg-success{% endif %}">{{ r.urgency_level or 'low' }}</span></td><td>{{ r.review_text }}</td><td class="d-flex gap-1"><a class="btn btn-sm btn-warning" href="{{ url_for('review_entry', edit=r.id) }}">Edit</a><form method="post" action="{{ url_for('reviews_delete', review_id=r.id) }}" onsubmit="return confirm('Delete this review row?');"><button class="btn btn-sm btn-danger" type="submit">Delete</button></form></td></tr>{% endfor %}</tbody></table>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped table-hover align-middle data-table">
+      <thead><tr><th>Date</th><th>Client</th><th>Source</th><th>Rating</th><th>Sentiment</th><th>Issue</th><th>Review</th><th class="text-end">Actions</th></tr></thead>
+      <tbody>
+      {% for r in recent %}
+        <tr>
+          <td>{{ r.review_date }}</td>
+          <td>{{ r.client.full_name if r.client else '-' }}</td>
+          <td><span class="badge text-bg-light">{{ r.source }}</span></td>
+          <td>{{ r.rating }}/5</td>
+          <td><span class="sentiment-pill sentiment-{{ r.sentiment_label }}">{{ r.sentiment_label }}</span></td>
+          <td>{{ r.issue_tag or 'General' }}</td>
+          <td class="text-wrap text-break">{{ r.review_text }}</td>
+          <td>
+            <div class="table-actions">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('review_entry', edit=r.id) }}">Edit</a>
+              <form method="post" action="{{ url_for('reviews_delete', review_id=r.id) }}" onsubmit="return confirm('Delete this review row?');"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8"><div class="empty-state">No reviews found for this source. Add a review above or change the source filter.</div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endblock %}

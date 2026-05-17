@@ -1,12 +1,13 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+<div class="page-header">
   <div>
-    <h2 class="mb-0">Menu Engineering</h2>
-    <p class="text-muted mb-0">Analyze popularity vs. profitability to optimize your menu mix.</p>
+    <p class="eyebrow">Menu performance</p>
+    <h2>Menu Engineering</h2>
+    <p class="text-muted mb-0">Maintain menu prices and costs, then analyze sales-driven popularity and profitability.</p>
   </div>
-  <form class="d-flex gap-2" method="get" action="{{ url_for('menu_engineering_filter') }}">
-    <input class="form-control" name="search" maxlength="150" value="{{ request.args.get('search','') }}" placeholder="Search items...">
+  <form class="toolbar-form toolbar-form--wide" method="get" action="{{ url_for('menu_engineering_filter') }}">
+    <input class="form-control" name="search" value="{{ request.args.get('search','') }}" placeholder="Search items...">
     <input type="hidden" name="sort_by" value="{{ request.args.get('sort_by','item_name') }}">
     <input type="hidden" name="sort_dir" value="{{ request.args.get('sort_dir','asc') }}">
     <select class="form-select" name="category">
@@ -19,83 +20,165 @@
 </div>
 
 <div class="row g-3 mb-3">
-  <div class="col-md-3"><div class="card border-success"><div class="card-body"><small class="text-success fw-bold">STARS</small><h3>{{ data.counts.Star }}</h3><small class="text-muted">High Profit + High Vol</small></div></div></div>
-  <div class="col-md-3"><div class="card border-primary"><div class="card-body"><small class="text-primary fw-bold">PLOWHORSES</small><h3>{{ data.counts.Plowhorse }}</h3><small class="text-muted">Low Profit + High Vol</small></div></div></div>
-  <div class="col-md-3"><div class="card border-warning"><div class="card-body"><small class="text-warning fw-bold">PUZZLES</small><h3>{{ data.counts.Puzzle }}</h3><small class="text-muted">High Profit + Low Vol</small></div></div></div>
-  <div class="col-md-3"><div class="card border-danger"><div class="card-body"><small class="text-danger fw-bold">DOGS</small><h3>{{ data.counts.Dog }}</h3><small class="text-muted">Low Profit + Low Vol</small></div></div></div>
+  <div class="col-md-3"><div class="metric-card metric-card--success"><small>Stars</small><h3>{{ data.counts.Star }}</h3><span>High profit and high volume</span></div></div>
+  <div class="col-md-3"><div class="metric-card metric-card--primary"><small>Plowhorses</small><h3>{{ data.counts.Plowhorse }}</h3><span>Low profit and high volume</span></div></div>
+  <div class="col-md-3"><div class="metric-card metric-card--warning"><small>Puzzles</small><h3>{{ data.counts.Puzzle }}</h3><span>High profit and low volume</span></div></div>
+  <div class="col-md-3"><div class="metric-card metric-card--danger"><small>Dogs</small><h3>{{ data.counts.Dog }}</h3><span>Low profit and low volume</span></div></div>
 </div>
 
 <div class="row g-3">
   <div class="col-lg-8">
-    <div class="card mb-3"><div class="card-body"><h5>Profitability vs. Popularity Matrix</h5><canvas id="menuMatrixChart" height="130"></canvas></div></div>
+    <section class="section-card chart-card">
+      <div class="section-card__header">
+        <div>
+          <h5>Profitability vs. popularity matrix</h5>
+          <p>Each dot represents one menu item based on sales quantity and contribution margin.</p>
+        </div>
+      </div>
+      {% if data.rows %}
+      <div class="menu-matrix-chart-container">
+        <canvas id="menuMatrixChart"></canvas>
+      </div>
+      {% else %}
+      <div class="empty-state">No menu items available yet. Add a menu item below to see the matrix.</div>
+      {% endif %}
+    </section>
   </div>
   <div class="col-lg-4">
-    <div class="card text-bg-dark h-100"><div class="card-body"><h5>Strategic Actions</h5>
-      {% for r in data.rows %}
-      <div class="border rounded p-2 mb-2">
-        <div class="d-flex justify-content-between"><strong>{{ r.item_name }}</strong><span>RM{{ '%.2f'|format(r.contribution_margin) }}</span></div>
-        <span class="badge {% if r.classification=='Star' %}text-bg-success{% elif r.classification=='Plowhorse' %}text-bg-primary{% elif r.classification=='Puzzle' %}text-bg-warning{% else %}text-bg-danger{% endif %}">{{ r.classification }}</span>
-        <div class="small mt-2">{{ r.recommendation }}</div>
-      </div>
-      {% endfor %}
-    </div></div>
-  </div>
-</div>
-
-<div class="card mt-3">
-  <div class="card-body">
-    <h5>{{ 'Edit' if editing else 'Add' }} Menu Item</h5>
-    <form method="post" action="{{ url_for('menu_engineering_edit', menu_id=editing.id) if editing else url_for('menu_engineering_add') }}">
-      <div class="row g-2">
-        <div class="col-md-2"><input type="text" maxlength="150" class="form-control" name="item_name" placeholder="Item Name" value="{{ editing.item_name if editing else '' }}" required></div>
-        <div class="col-md-2"><input type="text" maxlength="80" class="form-control" name="category" placeholder="Category" value="{{ editing.category if editing else '' }}" required></div>
-        <div class="col-md-1"><input type="number" min="0" step="0.01" class="form-control" name="selling_price" placeholder="Price" value="{{ editing.selling_price if editing else '' }}" required></div>
-        <div class="col-md-1"><input type="number" min="0" step="0.01" class="form-control" name="ingredient_cost" placeholder="Ingredient" value="{{ editing.ingredient_cost if editing else 0 }}"></div>
-        <div class="col-md-1"><input type="number" min="0" step="0.01" class="form-control" name="labor_cost" placeholder="Labor" value="{{ editing.labor_cost if editing else 0 }}"></div>
-        <div class="col-md-1"><input type="number" min="0" step="0.01" class="form-control" name="packaging_cost" placeholder="Packaging" value="{{ editing.packaging_cost if editing else 0 }}"></div>
-        <div class="col-md-1"><input type="number" min="0" step="0.01" class="form-control" name="overhead_cost" placeholder="Overhead" value="{{ editing.overhead_cost if editing else 0 }}"></div>
-        <div class="col-md-1"><input class="form-control" type="number" min="0" step="1" name="quantity_sold" placeholder="Qty Sold" value="{{ editing.quantity_sold if editing else 0 }}"></div>
-        <div class="col-md-1">
-          <select class="form-select" name="status" required>
-            <option value="active" {% if not editing or editing.status=='active' %}selected{% endif %}>Active</option>
-            <option value="inactive" {% if editing and editing.status=='inactive' %}selected{% endif %}>Inactive</option>
-          </select>
+    <section class="section-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Strategic actions</h5>
+          <p>Quick recommendations based on each item’s classification.</p>
         </div>
-        <div class="col-md-1 d-grid"><button class="btn btn-primary">{{ 'Update' if editing else 'Add' }}</button></div>
       </div>
-      <small class="form-help">All price/cost fields must be zero or higher.</small>
-      {% if editing %}<a class="btn btn-sm btn-secondary mt-2" href="{{ url_for('menu_engineering') }}">Cancel edit</a>{% endif %}
-    </form>
+      <div class="action-list">
+        {% for r in data.rows %}
+        <div class="action-list__item">
+          <div class="d-flex justify-content-between gap-2">
+            <strong>{{ r.item_name }}</strong>
+            <span>RM{{ '%.2f'|format(r.contribution_margin) }}</span>
+          </div>
+          <span class="badge {% if r.classification=='Star' %}text-bg-success{% elif r.classification=='Plowhorse' %}text-bg-primary{% elif r.classification=='Puzzle' %}text-bg-warning{% else %}text-bg-danger{% endif %}">{{ r.classification }}</span>
+          <p>{{ r.recommendation }}</p>
+        </div>
+        {% else %}
+        <div class="empty-state">Recommendations will appear after menu items are added.</div>
+        {% endfor %}
+      </div>
+    </section>
   </div>
 </div>
 
-<div class="card mt-3"><div class="card-body">
-  <h5>Menu Engineering Table</h5>
+<section class="section-card">
+  <div class="section-card__header">
+    <div>
+      <h5>{{ 'Update menu item' if editing else 'Add menu item' }}</h5>
+      <p>Enter master menu details. Quantity sold is recorded in Sales Entry.</p>
+    </div>
+  </div>
+  <form method="post" class="entry-form" action="{{ url_for('menu_engineering_edit', menu_id=editing.id) if editing else url_for('menu_engineering_add') }}">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Item name</label>
+        <input type="text" maxlength="150" class="form-control" name="item_name" placeholder="e.g. Nasi Goreng" value="{{ editing.item_name if editing else '' }}" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Category</label>
+        <input type="text" maxlength="80" class="form-control" name="category" placeholder="e.g. Main" value="{{ editing.category if editing else '' }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Selling price (RM)</label>
+        <input type="number" min="0" step="0.01" class="form-control" name="selling_price" placeholder="0.00" value="{{ editing.selling_price if editing else '' }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Status</label>
+        <select class="form-select" name="status" required>
+          <option value="active" {% if not editing or editing.status=='active' %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if editing and editing.status=='inactive' %}selected{% endif %}>Inactive</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Ingredient cost (RM)</label>
+        <input type="number" min="0" step="0.01" class="form-control" name="ingredient_cost" placeholder="0.00" value="{{ editing.ingredient_cost if editing else 0 }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Labor cost (RM)</label>
+        <input type="number" min="0" step="0.01" class="form-control" name="labor_cost" placeholder="0.00" value="{{ editing.labor_cost if editing else 0 }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Packaging cost (RM)</label>
+        <input type="number" min="0" step="0.01" class="form-control" name="packaging_cost" placeholder="0.00" value="{{ editing.packaging_cost if editing else 0 }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Overhead cost (RM)</label>
+        <input type="number" min="0" step="0.01" class="form-control" name="overhead_cost" placeholder="0.00" value="{{ editing.overhead_cost if editing else 0 }}">
+      </div>
+    </div>
+    <small class="form-help">All price and cost fields must be zero or higher.</small>
+    <div class="form-actions">
+      <button class="btn btn-primary">{{ 'Update menu item' if editing else 'Add menu item' }}</button>
+      {% if editing %}<a class="btn btn-outline-secondary" href="{{ url_for('menu_engineering') }}">Cancel edit</a>{% endif %}
+    </div>
+  </form>
+</section>
+
+{% if session.get('role') == 'admin_analyst' %}
+<section class="section-card import-panel">
+  <div class="section-card__header">
+    <div>
+      <h5>Optional Excel import</h5>
+      <p>Bulk upload menu items using the fixed template columns. Manual entry remains the main workflow.</p>
+    </div>
+  </div>
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('import_excel', module_key='menu_items') }}" class="import-form">
+    <div>
+      <strong>Template columns</strong>
+      <p>{{ import_specs.menu_items.columns|join(', ') }}</p>
+    </div>
+    <input class="form-control" type="file" name="excel_file" accept=".xlsx,.xls" required>
+    <button class="btn btn-outline-primary">Import Excel</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="section-card">
+  <div class="section-card__header">
+    <div>
+      <h5>Menu engineering table</h5>
+      <p>Sort by item, margin, sales quantity, profit, or classification.</p>
+    </div>
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('export_menu_items_excel', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by=request.args.get('sort_by','item_name'), sort_dir=request.args.get('sort_dir','asc')) }}">Export Excel</a>
+  </div>
   <div class="table-responsive">
-    <table class="table table-sm table-striped">
+    <table class="table table-sm table-striped table-hover align-middle data-table">
       <thead><tr>
-        <th><a href="{{ url_for('menu_engineering', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by='item_name', sort_dir='asc' if request.args.get('sort_dir','asc')=='desc' else 'desc') }}">Item Name</a></th>
-        <th>Category</th><th>Selling Price</th><th>Total Unit Cost</th>
-        <th><a href="{{ url_for('menu_engineering', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by='contribution_margin', sort_dir='asc' if request.args.get('sort_dir','asc')=='desc' else 'desc') }}">Contribution Margin</a></th>
-        <th><a href="{{ url_for('menu_engineering', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by='quantity_sold', sort_dir='asc' if request.args.get('sort_dir','asc')=='desc' else 'desc') }}">Quantity Sold</a></th>
-        <th><a href="{{ url_for('menu_engineering', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by='total_profit', sort_dir='asc' if request.args.get('sort_dir','asc')=='desc' else 'desc') }}">Total Profit</a></th>
+        <th><a href="{{ url_for('menu_engineering', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by='item_name', sort_dir='asc' if request.args.get('sort_dir','asc')=='desc' else 'desc') }}">Item name</a></th>
+        <th>Category</th><th>Selling price</th><th>Total unit cost</th>
+        <th><a href="{{ url_for('menu_engineering', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by='contribution_margin', sort_dir='asc' if request.args.get('sort_dir','asc')=='desc' else 'desc') }}">Contribution margin</a></th>
+        <th><a href="{{ url_for('menu_engineering', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by='quantity_sold', sort_dir='asc' if request.args.get('sort_dir','asc')=='desc' else 'desc') }}">Quantity sold</a></th>
+        <th><a href="{{ url_for('menu_engineering', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by='total_profit', sort_dir='asc' if request.args.get('sort_dir','asc')=='desc' else 'desc') }}">Total profit</a></th>
         <th><a href="{{ url_for('menu_engineering', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by='classification', sort_dir='asc' if request.args.get('sort_dir','asc')=='desc' else 'desc') }}">Classification</a></th>
-        <th>Actions</th></tr></thead>
+        <th class="text-end">Actions</th></tr></thead>
       <tbody>
       {% for r in data.rows %}
         <tr>
-          <td>{{ r.item_name }}</td><td>{{ r.category }}</td><td>{{ r.selling_price }}</td><td>{{ r.total_unit_cost }}</td><td>{{ r.contribution_margin }}</td><td>{{ r.quantity_sold }}</td><td>{{ r.total_profit }}</td>
+          <td>{{ r.item_name }}</td><td>{{ r.category }}</td><td>RM{{ '%.2f'|format(r.selling_price) }}</td><td>RM{{ '%.2f'|format(r.total_unit_cost) }}</td><td>RM{{ '%.2f'|format(r.contribution_margin) }}</td><td>{{ r.quantity_sold }}</td><td>RM{{ '%.2f'|format(r.total_profit) }}</td>
           <td><span class="badge {% if r.classification=='Star' %}text-bg-success{% elif r.classification=='Plowhorse' %}text-bg-primary{% elif r.classification=='Puzzle' %}text-bg-warning{% else %}text-bg-danger{% endif %}">{{ r.classification }}</span></td>
-          <td class="d-flex gap-1">
-            <a class="btn btn-sm btn-warning" href="{{ url_for('menu_engineering', edit=r.id) }}">Edit</a>
-            <form method="post" action="{{ url_for('menu_engineering_delete', menu_id=r.id) }}" onsubmit="return confirm('Delete this item?');"><button class="btn btn-sm btn-danger" type="submit">Delete</button></form>
+          <td>
+            <div class="table-actions">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('menu_engineering', edit=r.id) }}">Edit</a>
+              <form method="post" action="{{ url_for('menu_engineering_delete', menu_id=r.id) }}" onsubmit="return confirm('Delete this item?');"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form>
+            </div>
           </td>
         </tr>
+      {% else %}
+        <tr><td colspan="9"><div class="empty-state">No menu items match the current filter. Add a new item or adjust the search.</div></td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
-</div></div>
+</section>
 
 <script id="menu-engineering-data" type="application/json">{{ data|tojson }}</script>
 {% endblock %}

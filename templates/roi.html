@@ -1,7 +1,128 @@
 {% extends 'base.html' %}
 {% block content %}
-<h3>Marketing ROI Page</h3>
-<table class="table table-striped"><thead><tr><th>Campaign</th><th>Spend</th><th>Revenue</th><th>ROI %</th></tr></thead>
-<tbody>{% for c in metrics.campaign_roi %}<tr><td>{{ c.campaign }}</td><td>{{ c.spend }}</td><td>{{ c.revenue }}</td><td>{{ c.roi|round(2) }}</td></tr>{% endfor %}</tbody>
-</table>
+{% set sales_roi = metrics.monthly_sales_roi_graph %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Marketing ROI</p>
+    <h2>Sales and ROI Financial Graph</h2>
+    <p class="text-muted mb-0">Monthly sales performance compared with campaign ROI for {{ sales_roi.year }}.</p>
+  </div>
+</div>
+
+<section class="section-card roi-combo-card">
+  <div class="section-card__header">
+    <div>
+      <h5>Sales and ROI</h5>
+      <p>Sales are shown as bars, with ROI percentage overlaid as a line on the right axis.</p>
+    </div>
+  </div>
+  <div class="roi-combo-layout">
+    <div class="roi-combo-chart-container">
+      <canvas id="salesRoiChart"></canvas>
+    </div>
+    <aside class="roi-combo-insights" aria-label="Sales and ROI insights">
+      <div>
+        <span>Highest sales month</span>
+        <strong>{{ sales_roi.highest_sales_month or 'No sales yet' }}</strong>
+        <small>{% if sales_roi.highest_sales_month %}RM {{ '%.2f'|format(sales_roi.highest_sales_value) }}{% else %}Add sales records to populate this insight.{% endif %}</small>
+      </div>
+      <div>
+        <span>Lowest ROI month</span>
+        <strong>{{ sales_roi.lowest_roi_month or 'No campaigns yet' }}</strong>
+        <small>{% if sales_roi.lowest_roi_month %}{{ '%.2f'|format(sales_roi.lowest_roi_value) }}% ROI{% else %}Add campaign spend and revenue to calculate ROI.{% endif %}</small>
+      </div>
+      <div>
+        <span>Campaign months</span>
+        <strong>{{ sales_roi.active_marketing_months }}</strong>
+        <small>Months with recorded marketing spend.</small>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section class="section-card">
+  <div class="section-card__header">
+    <div>
+      <h5>Campaign ROI Table</h5>
+      <p>Campaign-level ROI uses the same ROI formula as the financial graph.</p>
+    </div>
+  </div>
+  <div class="list-filter-panel roi-table-filter-panel">
+    <div class="list-filter-actions" aria-label="Campaign ROI table filters">
+      <a class="btn btn-sm {{ 'btn-primary' if roi_table_filter.view == 'all' else 'btn-outline-primary' }}" href="{{ url_for('roi_page', q=roi_table_filter.q, roi_sort=roi_table_filter.roi_sort) }}">All</a>
+      <a class="btn btn-sm {{ 'btn-primary' if roi_table_filter.view == 'day' else 'btn-outline-secondary' }}" href="{{ url_for('roi_page', view='day', q=roi_table_filter.q, roi_sort=roi_table_filter.roi_sort) }}">Day</a>
+      <a class="btn btn-sm {{ 'btn-primary' if roi_table_filter.view == 'week' else 'btn-outline-secondary' }}" href="{{ url_for('roi_page', view='week', q=roi_table_filter.q, roi_sort=roi_table_filter.roi_sort) }}">Week</a>
+      <a class="btn btn-sm {{ 'btn-primary' if roi_table_filter.view == 'month' else 'btn-outline-secondary' }}" href="{{ url_for('roi_page', view='month', q=roi_table_filter.q, roi_sort=roi_table_filter.roi_sort) }}">Month</a>
+      {% if roi_table_filter.has_filters %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('roi_page') }}">Clear Filters</a>
+      {% endif %}
+    </div>
+    <div class="list-filter-forms">
+      <form method="get" class="list-filter-form roi-table-filter-search">
+        <input type="hidden" name="view" value="{{ roi_table_filter.view }}">
+        {% if roi_table_filter.view == 'date' %}
+        <input type="hidden" name="date" value="{{ roi_table_filter.date }}">
+        {% elif roi_table_filter.view == 'range' %}
+        <input type="hidden" name="start_date" value="{{ roi_table_filter.start_date }}">
+        <input type="hidden" name="end_date" value="{{ roi_table_filter.end_date }}">
+        {% endif %}
+        <label class="form-label" for="roi-campaign-search">Campaign search</label>
+        <input id="roi-campaign-search" type="text" class="form-control form-control-sm" name="q" value="{{ roi_table_filter.q }}" placeholder="Campaign name">
+        <label class="form-label" for="roi-sort">ROI order</label>
+        <select id="roi-sort" class="form-select form-select-sm" name="roi_sort">
+          <option value="default" {{ 'selected' if roi_table_filter.roi_sort == 'default' else '' }}>Default</option>
+          <option value="highest" {{ 'selected' if roi_table_filter.roi_sort == 'highest' else '' }}>Highest ROI</option>
+          <option value="lowest" {{ 'selected' if roi_table_filter.roi_sort == 'lowest' else '' }}>Lowest ROI</option>
+        </select>
+        <button class="btn btn-sm btn-outline-primary">Apply</button>
+      </form>
+      <form method="get" class="list-filter-form">
+        <input type="hidden" name="view" value="date">
+        <input type="hidden" name="q" value="{{ roi_table_filter.q }}">
+        <input type="hidden" name="roi_sort" value="{{ roi_table_filter.roi_sort }}">
+        <label class="form-label" for="roi-filter-date">Specific date</label>
+        <input id="roi-filter-date" type="date" class="form-control form-control-sm" name="date" value="{{ roi_table_filter.date }}">
+        <button class="btn btn-sm btn-outline-primary">Apply</button>
+      </form>
+      <form method="get" class="list-filter-form list-filter-form--range">
+        <input type="hidden" name="view" value="range">
+        <input type="hidden" name="q" value="{{ roi_table_filter.q }}">
+        <input type="hidden" name="roi_sort" value="{{ roi_table_filter.roi_sort }}">
+        <label class="form-label" for="roi-filter-start">Date range</label>
+        <input id="roi-filter-start" type="date" class="form-control form-control-sm" name="start_date" value="{{ roi_table_filter.start_date }}">
+        <input type="date" class="form-control form-control-sm" name="end_date" value="{{ roi_table_filter.end_date }}" aria-label="End date">
+        <button class="btn btn-sm btn-outline-primary">Apply</button>
+      </form>
+    </div>
+    <div class="list-filter-meta">
+      {{ roi_table_filter.count }} campaign group{{ '' if roi_table_filter.count == 1 else 's' }} shown from {{ roi_table_filter.record_count }} record{{ '' if roi_table_filter.record_count == 1 else 's' }}. {{ roi_table_filter.summary }}
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-striped table-sm align-middle data-table">
+      <thead>
+        <tr>
+          <th>Campaign</th>
+          <th>Spend</th>
+          <th>Revenue</th>
+          <th>ROI %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in roi_rows %}
+        <tr>
+          <td>{{ c.campaign }}</td>
+          <td>RM {{ '%.2f'|format(c.spend) }}</td>
+          <td>RM {{ '%.2f'|format(c.revenue) }}</td>
+          <td>{{ c.roi|round(2) }}%</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4"><div class="empty-state">No campaign ROI records match these filters. Try clearing the search or widening the date range.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script id="chart-data" type="application/json">{{ metrics|tojson }}</script>
 {% endblock %}

@@ -1,37 +1,171 @@
 {% extends 'base.html' %}
 {% block content %}
-<h3>Main Dashboard</h3>
-<p class="text-muted">Decision-support overview for traditional F&B SMEs.</p>
+{% set is_admin = session.get('role') == 'admin_analyst' %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">{{ 'Admin / Analyst' if is_admin else 'Client' }}</p>
+    <h2>{{ 'Admin Dashboard' if is_admin else 'Business Dashboard' }}</h2>
+    <p class="text-muted mb-0">
+      {{ 'Monitor client business performance and spot areas needing analyst attention.' if is_admin else 'Review your business summary, charts, and recommendations from the analyst team.' }}
+    </p>
+  </div>
+</div>
+
 <div class="row g-3 mb-3">
   <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Revenue</small><h5>RM {{ metrics.kpis.revenue }}</h5></div></div></div>
   <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Cost</small><h5>RM {{ metrics.kpis.cost }}</h5></div></div></div>
   <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Profit</small><h5>RM {{ metrics.kpis.profit }}</h5></div></div></div>
   <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>ROI</small><h5>{{ metrics.kpis.roi }}%</h5></div></div></div>
   <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Positive Sentiment</small><h5>{{ metrics.kpis.positive_sentiment }}%</h5></div></div></div>
-  <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Demand Window</small><h6>{{ metrics.peak_day }} / {{ metrics.low_day }}</h6></div></div></div>
+  <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Demand Window</small><h6>{{ metrics.peak_day or '-' }} / {{ metrics.low_day or '-' }}</h6></div></div></div>
 </div>
 
-<div class="row g-3">
-  <div class="col-md-6"><div class="card"><div class="card-body"><h6>Revenue Trend</h6><canvas id="revenueChart"></canvas></div></div></div>
-  <div class="col-md-6"><div class="card"><div class="card-body"><h6>Cash Flow Trend</h6><canvas id="cashChart"></canvas></div></div></div>
-  <div class="col-md-6"><div class="card"><div class="card-body"><h6>Sentiment Distribution</h6><canvas id="sentimentPie"></canvas></div></div></div>
-  <div class="col-md-6"><div class="card"><div class="card-body"><h6>Revenue vs Sentiment</h6><canvas id="sentimentSales"></canvas></div></div></div>
+<div class="row g-3 mb-3">
+  <div class="col-lg-4">
+    <section class="section-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Inventory Summary</h5>
+          <p>Simple stock monitoring for key ingredients.</p>
+        </div>
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('inventory_page') }}">Open</a>
+      </div>
+      <div class="row g-2">
+        <div class="col-6">
+          <div class="inventory-mini-stat">
+            <span>Total items</span>
+            <strong>{{ inventory_summary.total_items }}</strong>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="inventory-mini-stat inventory-mini-stat--warning">
+            <span>Low stock</span>
+            <strong>{{ inventory_summary.low_stock_count }}</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div class="col-lg-8">
+    <section class="section-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Low-stock Items</h5>
+          <p>Items at or below their minimum threshold.</p>
+        </div>
+      </div>
+      <div class="inventory-alert-list">
+        {% for item in inventory_summary.low_stock_items[:4] %}
+        <a href="{{ url_for('inventory_detail', item_id=item.id) }}" class="inventory-alert-item">
+          <strong>{{ item.ingredient_name }}</strong>
+          <span>{{ '%.2f'|format(item.current_stock) }} {{ item.unit }} left</span>
+        </a>
+        {% else %}
+        <div class="empty-state">No low-stock inventory alerts right now.</div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
 </div>
 
-{% if qr_payload %}
-<div class="card mt-3">
-  <div class="card-body d-flex flex-wrap gap-3 align-items-center">
-    <img src="{{ qr_payload.qr_image_url }}" alt="Client Feedback QR" width="140" height="140" class="border rounded">
-    <div>
-      <h6 class="mb-1">Your QR Feedback Link</h6>
-      <p class="text-muted mb-2">Share this QR to collect customer feedback directly into your dashboard.</p>
-      <a class="btn btn-sm btn-outline-primary" href="{{ qr_payload.feedback_url }}" target="_blank" rel="noopener">Open Feedback Form</a>
-      <a class="btn btn-sm btn-outline-secondary" href="{{ qr_payload.qr_image_url }}" target="_blank" rel="noopener">Download QR</a>
-      <div class="small text-muted mt-2">{{ qr_payload.feedback_url }}</div>
-    </div>
+{% if not is_admin %}
+<div class="row g-3 mb-3">
+  <div class="col-lg-8">
+    <section class="section-card h-100" id="recommendations">
+      <div class="section-card__header">
+        <div>
+          <h5>Recommendations from Our Team</h5>
+          <p>Latest analyst notes and recommendations for your account.</p>
+        </div>
+      </div>
+      {% for note in analyst_notes %}
+      <div class="action-list__item mb-2">
+        <div class="d-flex justify-content-between gap-2">
+          <strong>{{ note.analyst_user.full_name if note.analyst_user else 'Admin / Analyst' }}</strong>
+          <span class="text-muted small">{{ note.created_at.strftime('%Y-%m-%d') if note.created_at else '' }}</span>
+        </div>
+        <p class="mb-0">{{ note.note_text }}</p>
+      </div>
+      {% else %}
+      <div class="empty-state">No analyst recommendations yet. Check back after your next review.</div>
+      {% endfor %}
+    </section>
+  </div>
+  <div class="col-lg-4">
+    <section class="section-card h-100" id="account">
+      <div class="section-card__header">
+        <div>
+          <h5>Profile / Account</h5>
+          <p>Your current logged-in client account.</p>
+        </div>
+      </div>
+      <dl class="mb-0">
+        <dt>Name</dt>
+        <dd>{{ session.get('full_name') }}</dd>
+        <dt>Role</dt>
+        <dd>Client</dd>
+      </dl>
+      {% if qr_payload %}
+      <hr>
+      <a class="btn btn-outline-primary w-100" href="{{ qr_payload.feedback_url }}" target="_blank" rel="noopener">Open Customer Feedback Form</a>
+      {% endif %}
+    </section>
   </div>
 </div>
 {% endif %}
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <section class="section-card chart-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Revenue Trend</h5>
+          <p>Daily revenue movement with cleaner date spacing.</p>
+        </div>
+      </div>
+      <div class="financial-line-chart-container">
+        <canvas id="revenueChart"></canvas>
+      </div>
+    </section>
+  </div>
+  <div class="col-md-6">
+    <section class="section-card chart-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Cash Flow Trend</h5>
+          <p>Cumulative cash flow across recorded sales and expenses.</p>
+        </div>
+      </div>
+      <div class="financial-line-chart-container">
+        <canvas id="cashChart"></canvas>
+      </div>
+    </section>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6>Revenue by Channel</h6>
+        <div class="revenue-channel-layout">
+          <div class="revenue-channel-chart-container">
+            <canvas id="revenueByChannelChart"></canvas>
+          </div>
+          <div class="revenue-channel-list">
+            {% for row in metrics.revenue_by_channel %}
+            <div class="revenue-channel-list__item">
+              <span class="revenue-channel-list__name">{{ row.channel }}</span>
+              <strong>RM{{ '%.2f'|format(row.revenue) }}</strong>
+            </div>
+            {% else %}
+            <div class="empty-state">No channel revenue yet.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6"><div class="card"><div class="card-body"><h6>Sentiment Distribution</h6><canvas id="sentimentPie"></canvas></div></div></div>
+  <div class="col-md-6"><div class="card"><div class="card-body"><h6>Revenue vs Sentiment</h6><canvas id="sentimentSales"></canvas></div></div></div>
+</div>
 
 <script id="chart-data" type="application/json">{{ metrics|tojson }}</script>
 {% endblock %}

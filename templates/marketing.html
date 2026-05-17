@@ -1,36 +1,130 @@
 {% extends 'base.html' %}
 {% block content %}
-<h3>Marketing Campaign Entry</h3>
-<form method="post" class="card card-body mb-3">
-  <input type="hidden" name="campaign_id" value="{{ editing.id if editing else '' }}">
-  <div class="row g-2">
-    <div class="col-md-2">
-      <label class="form-label">Date</label>
-      <input type="date" class="form-control" name="campaign_date" value="{{ editing.campaign_date if editing else today }}" required>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Campaign</label>
-      <input type="text" maxlength="150" class="form-control" name="campaign_name" value="{{ editing.campaign_name if editing else '' }}" placeholder="Campaign title" required>
-    </div>
-    <div class="col-md-2">
-      <label class="form-label">Platform</label>
-      <input type="text" maxlength="80" class="form-control" name="platform" value="{{ editing.platform if editing else '' }}" placeholder="e.g. Facebook, TikTok" required>
-    </div>
-    <div class="col-md-2">
-      <label class="form-label">Spend</label>
-      <input type="number" min="0" step="0.01" class="form-control" name="spend" value="{{ editing.spend if editing else '' }}" placeholder="0.00" required>
-    </div>
-    <div class="col-md-2">
-      <label class="form-label">Revenue</label>
-      <input type="number" min="0" step="0.01" class="form-control" name="revenue_generated" value="{{ editing.revenue_generated if editing else '' }}" placeholder="0.00" required>
-    </div>
-    <div class="col-md-1">
-      <label class="form-label">Note</label>
-      <input type="text" maxlength="255" class="form-control" name="note" value="{{ editing.note if editing else '' }}" placeholder="Optional">
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Marketing ROI</p>
+    <h2>{{ 'Edit Campaign' if editing else 'Marketing Campaign Entry' }}</h2>
+    <p class="text-muted mb-0">Capture spend and generated revenue to compare campaign performance.</p>
+  </div>
+</div>
+
+<section class="section-card">
+  <div class="section-card__header">
+    <div>
+      <h5>{{ 'Update campaign' if editing else 'Add campaign' }}</h5>
+      <p>Record each campaign once so ROI reporting stays easy to understand.</p>
     </div>
   </div>
-  <button class="btn btn-primary mt-3">{{ 'Update' if editing else 'Save' }} Campaign</button>
-  {% if editing %}<a class="btn btn-secondary mt-3" href="{{ url_for('marketing_entry') }}">Cancel</a>{% endif %}
-</form>
-<table class="table table-sm table-striped"><thead><tr><th>Date</th><th>Campaign</th><th>Platform</th><th>Spend</th><th>Revenue</th><th>Actions</th></tr></thead><tbody>{% for m in recent %}<tr><td>{{ m.campaign_date }}</td><td>{{ m.campaign_name }}</td><td>{{ m.platform }}</td><td>{{ m.spend }}</td><td>{{ m.revenue_generated }}</td><td class="d-flex gap-1"><a class="btn btn-sm btn-warning" href="{{ url_for('marketing_entry', edit=m.id) }}">Edit</a><form method="post" action="{{ url_for('marketing_delete', campaign_id=m.id) }}" onsubmit="return confirm('Delete this campaign row?');"><button class="btn btn-sm btn-danger" type="submit">Delete</button></form></td></tr>{% endfor %}</tbody></table>
+  <form method="post" class="entry-form">
+    <input type="hidden" name="campaign_id" value="{{ editing.id if editing else '' }}">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Campaign date</label>
+        <input type="date" class="form-control" name="campaign_date" value="{{ editing.campaign_date if editing else today }}" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Campaign name</label>
+        <input class="form-control" name="campaign_name" value="{{ editing.campaign_name if editing else '' }}" placeholder="e.g. Ramadan promo" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Platform</label>
+        <input class="form-control" name="platform" value="{{ editing.platform if editing else '' }}" placeholder="e.g. TikTok" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Spend (RM)</label>
+        <input type="number" min="0" step="0.01" class="form-control" name="spend" value="{{ editing.spend if editing else '' }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Revenue (RM)</label>
+        <input type="number" min="0" step="0.01" class="form-control" name="revenue_generated" value="{{ editing.revenue_generated if editing else '' }}" required>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Note</label>
+        <input class="form-control" name="note" value="{{ editing.note if editing else '' }}" placeholder="Optional campaign details">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary">{{ 'Update campaign' if editing else 'Save campaign' }}</button>
+      {% if editing %}<a class="btn btn-outline-secondary" href="{{ url_for('marketing_entry') }}">Cancel edit</a>{% endif %}
+    </div>
+  </form>
+</section>
+
+{% if session.get('role') == 'admin_analyst' %}
+<section class="section-card import-panel">
+  <div class="section-card__header">
+    <div>
+      <h5>Optional Excel import</h5>
+      <p>Bulk upload campaigns using the fixed template columns. Manual entry remains available above.</p>
+    </div>
+  </div>
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('import_excel', module_key='marketing') }}" class="import-form">
+    <div>
+      <strong>Template columns</strong>
+      <p>{{ import_specs.marketing.columns|join(', ') }}</p>
+    </div>
+    <input class="form-control" type="file" name="excel_file" accept=".xlsx,.xls" required>
+    <button class="btn btn-outline-primary">Import Excel</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="section-card">
+  <div class="section-card__header">
+    <div>
+      <h5>{{ list_filter.title }}</h5>
+      <p>{{ list_filter.summary }}</p>
+    </div>
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('export_marketing_excel', view=list_filter.view, date=list_filter.date, start_date=list_filter.start_date, end_date=list_filter.end_date) }}">Export Excel</a>
+  </div>
+  <div class="list-filter-panel">
+    <div class="list-filter-actions" aria-label="Campaign list filters">
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'recent' else 'btn-outline-primary' }}" href="{{ url_for('marketing_entry') }}">Recent</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'all' else 'btn-outline-primary' }}" href="{{ url_for('marketing_entry', view='all') }}">Show All</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'day' else 'btn-outline-secondary' }}" href="{{ url_for('marketing_entry', view='day') }}">Day</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'week' else 'btn-outline-secondary' }}" href="{{ url_for('marketing_entry', view='week') }}">Week</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'month' else 'btn-outline-secondary' }}" href="{{ url_for('marketing_entry', view='month') }}">Month</a>
+    </div>
+    <div class="list-filter-forms">
+      <form method="get" class="list-filter-form">
+        <input type="hidden" name="view" value="date">
+        <label class="form-label" for="marketing-filter-date">Specific date</label>
+        <input id="marketing-filter-date" type="date" class="form-control form-control-sm" name="date" value="{{ list_filter.date }}">
+        <button class="btn btn-sm btn-outline-primary">Apply</button>
+      </form>
+      <form method="get" class="list-filter-form list-filter-form--range">
+        <input type="hidden" name="view" value="range">
+        <label class="form-label" for="marketing-filter-start">Date range</label>
+        <input id="marketing-filter-start" type="date" class="form-control form-control-sm" name="start_date" value="{{ list_filter.start_date }}">
+        <input type="date" class="form-control form-control-sm" name="end_date" value="{{ list_filter.end_date }}" aria-label="End date">
+        <button class="btn btn-sm btn-outline-primary">Apply</button>
+      </form>
+    </div>
+    <div class="list-filter-meta">{{ list_filter.count }} record{{ '' if list_filter.count == 1 else 's' }} shown</div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped table-hover align-middle data-table">
+      <thead><tr><th>Date</th><th>Campaign</th><th>Platform</th><th>Spend</th><th>Revenue</th><th class="text-end">Actions</th></tr></thead>
+      <tbody>
+      {% for m in recent %}
+        <tr>
+          <td>{{ m.campaign_date }}</td>
+          <td>{{ m.campaign_name }}</td>
+          <td>{{ m.platform }}</td>
+          <td>RM{{ '%.2f'|format(m.spend) }}</td>
+          <td>RM{{ '%.2f'|format(m.revenue_generated) }}</td>
+          <td>
+            <div class="table-actions">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('marketing_entry', edit=m.id) }}">Edit</a>
+              <form method="post" action="{{ url_for('marketing_delete', campaign_id=m.id) }}" onsubmit="return confirm('Delete this campaign row?');"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6"><div class="empty-state">No campaigns match this view. Try Show All or adjust the date filter.</div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endblock %}

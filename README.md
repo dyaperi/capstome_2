@@ -1,60 +1,55 @@
 # Intelligent Financial and Branding Insights System for F&B SMEs
 
-This is a Flask capstone project for small food and beverage businesses (SMEs).
+A Flask capstone prototype for traditional food and beverage SMEs (for example, Mee Rebus Amy Warisan Sary).
 
-## Tech Stack
-- Backend: Flask (Python)
-- Frontend: HTML, CSS, Bootstrap 5, JavaScript
-- Database: MySQL (set with `DATABASE_URL`)
+## Required stack
+- Backend: **Flask (Python)**
+- Frontend: **HTML, CSS, Bootstrap 5, JavaScript**
+- Database: **MySQL** (default via `DATABASE_URL`)
 
-## Main Features
-- Login page (default account: `admin / admin123`)
-- Data input pages:
-  - Menu Engineering (add, edit, delete)
-  - Sales
-  - Expenses
-  - Marketing campaigns
-  - Customer reviews
-- Dashboard with key numbers:
-  - Revenue
-  - Cost
-  - Profit
-  - ROI
-  - Positive sentiment
+## Features delivered
+- Login page (default: `admin / admin123`)
+- Direct data entry pages (primary workflow):
+  - Menu Engineering module (add, edit, update, delete)
+  - Sales entry
+  - Expense entry
+  - Marketing campaign entry
+  - Customer review entry
+- Main dashboard with KPI cards (revenue, cost, profit, ROI, positive sentiment)
 - Analytics page
-- Forecast page (revenue and cash flow)
+- Forecast page (revenue + cash flow forecasts)
 - ROI page (campaign ROI table)
-- Sentiment page (distribution and trend)
-- Reports page (P&L summary and menu performance)
-- Profitability vs popularity matrix with action suggestions
+- Sentiment insights page (distribution + trend vs sales)
+- Reports page (P&L summary + menu performance)
+- Full row-level action buttons (edit/delete) for table records
+- Profitability vs Popularity matrix, quadrant classification, and strategic action recommendations
 
-## Project Files
-- `app.py` - Main Flask app and routes
-- `config.py` - App settings and database URL
-- `db.py` - SQLAlchemy setup
-- `models.py` - Database models
-- `analytics.py` - Forecast, ROI, and sentiment logic
-- `schema.sql` - MySQL table schema
-- `templates/` - HTML templates (Jinja + Bootstrap)
-- `static/css/style.css` - Custom styles
-- `static/js/dashboard.js` - Chart.js code
+## Project structure
+- `app.py` - Flask app and routes
+- `config.py` - app configuration + MySQL URI
+- `db.py` - SQLAlchemy instance
+- `models.py` - relational models
+- `analytics.py` - forecasting, ROI, and sentiment logic
+- `schema.sql` - MySQL schema (optional if you use MySQL)
+- `templates/` - Jinja + Bootstrap pages
+- `static/css/style.css` - custom UI styles
+- `static/js/dashboard.js` - Chart.js rendering
 
-## Database Setup (MySQL)
-1. Create database tables:
+## Database setup (MySQL)
+1. Create DB and tables:
 ```sql
 SOURCE schema.sql;
 ```
-
-2. Set database URL in PowerShell:
+2. Configure connection string (PowerShell example):
 ```powershell
 $env:DATABASE_URL="mysql+pymysql://root:deaperi@localhost:3306/fnb_insights"
 ```
 
-## Run the App
-This is a Flask app, not a Streamlit app.
-Run with `python app.py`.
+## Run locally
+> This is a **Flask app**, not a Streamlit app.  
+> Use `python app.py` (do **not** run `streamlit run app.py`).
 
-### Windows (PowerShell)
+### Windows PowerShell
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -62,7 +57,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Or use:
+Or run helper script:
 ```powershell
 .\run_flask.ps1
 ```
@@ -75,31 +70,43 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Or use:
+Or run helper script:
 ```bash
 ./run_flask.sh
 ```
 
-Open in browser: `http://127.0.0.1:5000`
+Open: `http://127.0.0.1:5000`
 
 ## Notes
-- Main data input is manual form entry in the app.
-- All records are saved in the SQL database.
-- Analytics are calculated from database data.
+- Primary data input is manual forms in the web app (CSV upload is not the main workflow).
+- All business records are stored in the configured SQL database and analytics are calculated from DB data.
+- Default configuration points to MySQL: `mysql+pymysql://root:deaperi@localhost:3306/fnb_insights`.
 
 ## Troubleshooting
-- If you see merge markers like `<<<<<<<` in `app.py`, fix the conflict first.
-- If you see `ModuleNotFoundError: No module named 'flask_sqlalchemy'`:
-  1. Activate your virtual environment.
+- If you see `SyntaxError` with `<<<<<<< ours` in `app.py`, your local file still has unresolved Git merge conflict markers.
+- Fix by discarding local conflicted content and restoring the committed version:
+  - `git checkout -- app.py`
+  - then run `python -m py_compile app.py` to confirm syntax is valid.
+- If you see `ModuleNotFoundError: No module named 'flask_sqlalchemy'`, your current Python environment does not have dependencies installed.
+  1. Activate your virtual environment first.
   2. Run:
      - `python -m pip install --upgrade pip`
      - `python -m pip install -r requirements.txt`
-  3. Run the app again: `python app.py`
-- If you ran `streamlit run app.py`, stop it and run `python app.py` instead.
+  3. Verify install:
+     - `python -m pip show Flask-SQLAlchemy`
+  4. Re-run:
+     - `python app.py`
+- If you ran `streamlit run app.py`, stop and run `python app.py` instead (this project uses Flask routes/templates, not Streamlit).
 
-## Quick Conflict Fix
-If Git reports conflicts in files like `README.md`, `app.py`, or `requirements.txt`, run:
+### Fix merge-conflicted files quickly
+If Git shows:
+- `Conflicted: README.md`
+- `Conflicted: app.py`
+- `Conflicted: requirements.txt`
 
+run:
 ```bash
 ./fix_conflicts.sh
 ```
+
+This script checks those files for conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) and restores clean versions from your current branch `HEAD`.

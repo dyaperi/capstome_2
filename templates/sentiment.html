@@ -1,122 +1,214 @@
 {% extends 'base.html' %}
 {% block content %}
-<h3>Brand Intelligence - Sentiment Insights</h3>
-<p class="text-muted">Distribution, source quality, critical alerts, issue tagging, and action recommendations.</p>
-<form method="get" class="card card-body mb-3">
-  <div class="row g-2 align-items-end">
-    <div class="col-md-4">
-      <label class="form-label">Source Filter</label>
-      <select class="form-select" name="source">
-        <option value="All" {% if selected_source == 'All' %}selected{% endif %}>All Sources</option>
-        {% for src in review_sources %}
-        <option value="{{ src }}" {% if selected_source == src %}selected{% endif %}>{{ src }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-2">
-      <button class="btn btn-outline-primary">Apply</button>
-    </div>
+{% set counts = metrics.sentiment_counts %}
+{% set percentages = metrics.sentiment_percentages %}
+{% set total_reviews = metrics.sentiment_total %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Sentiment</p>
+    <h2>Sentiment Insights Page</h2>
+    <p class="text-muted mb-0">Review customer sentiment patterns without changing the underlying analysis model.</p>
   </div>
-</form>
-<div class="row g-3">
-  <div class="col-md-5"><canvas id="sentimentPie"></canvas></div>
-  <div class="col-md-7"><canvas id="sentimentSales"></canvas></div>
 </div>
 
-<div class="card mt-3">
-  <div class="card-body">
-    <h6>Sentiment Trend Over Time</h6>
-    <div class="table-responsive">
-      <table class="table table-sm table-striped">
-        <thead><tr><th>Date</th><th>Average Sentiment Score</th></tr></thead>
-        <tbody>
-          {% for t in intelligence.sentiment_trend %}
-          <tr><td>{{ t.date }}</td><td>{{ t.avg_score }}</td></tr>
-          {% else %}
-          <tr><td colspan="2" class="text-muted">No trend data yet.</td></tr>
+<section class="section-card">
+  <div class="section-card__header">
+    <div>
+      <h5>Source Filter</h5>
+      <p>Filter the existing sentiment dataset by review source.</p>
+    </div>
+  </div>
+  <form method="get" class="entry-form">
+    <input type="hidden" name="period" value="{{ selected_period }}">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label">Review source</label>
+        <select class="form-select" name="source">
+          <option value="All" {% if selected_source == 'All' %}selected{% endif %}>All Sources</option>
+          {% for src in review_sources %}
+          <option value="{{ src }}" {% if selected_source == src %}selected{% endif %}>{{ src }}</option>
           {% endfor %}
-        </tbody>
-      </table>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-outline-primary w-100">Apply</button>
+      </div>
+    </div>
+  </form>
+</section>
+
+<section class="section-card sentiment-distribution-card">
+  <div class="section-card__header sentiment-distribution-header">
+    <div>
+      <h5>Sentiment Distribution</h5>
+      <p>{{ period_label }} - {{ period_start }} to {{ period_end }}</p>
+    </div>
+    <div class="list-filter-actions sentiment-period-filter" aria-label="Sentiment period filters">
+      <a class="btn btn-sm {{ 'btn-primary' if selected_period == 'day' else 'btn-outline-secondary' }}" href="{{ url_for('sentiment_page', period='day', source=selected_source) }}">Day</a>
+      <a class="btn btn-sm {{ 'btn-primary' if selected_period == 'week' else 'btn-outline-secondary' }}" href="{{ url_for('sentiment_page', period='week', source=selected_source) }}">Week</a>
+      <a class="btn btn-sm {{ 'btn-primary' if selected_period == 'month' else 'btn-outline-secondary' }}" href="{{ url_for('sentiment_page', period='month', source=selected_source) }}">Month</a>
     </div>
   </div>
-</div>
 
-<div class="row g-3 mt-1">
+  <div class="sentiment-distribution-layout">
+    <div class="sentiment-doughnut-wrap">
+      <canvas id="sentimentPie" aria-label="Sentiment distribution doughnut chart"></canvas>
+    </div>
+
+    <div class="sentiment-distribution-legend" aria-label="Sentiment legend">
+      <span><i class="sentiment-dot sentiment-dot--negative"></i>Negative</span>
+      <span><i class="sentiment-dot sentiment-dot--neutral"></i>Neutral</span>
+      <span><i class="sentiment-dot sentiment-dot--positive"></i>Positive</span>
+    </div>
+
+    <div class="sentiment-summary-grid">
+      <div class="sentiment-summary-card sentiment-summary-card--positive">
+        <strong>{{ percentages.positive }}%</strong>
+        <span>Positive</span>
+        <small>{{ counts.positive }} review{{ '' if counts.positive == 1 else 's' }}</small>
+      </div>
+      <div class="sentiment-summary-card sentiment-summary-card--neutral">
+        <strong>{{ percentages.neutral }}%</strong>
+        <span>Neutral</span>
+        <small>{{ counts.neutral }} review{{ '' if counts.neutral == 1 else 's' }}</small>
+      </div>
+      <div class="sentiment-summary-card sentiment-summary-card--negative">
+        <strong>{{ percentages.negative }}%</strong>
+        <span>Negative</span>
+        <small>{{ counts.negative }} review{{ '' if counts.negative == 1 else 's' }}</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section-card chart-card">
+  <div class="section-card__header">
+    <div>
+      <h5>Sentiment vs Sales</h5>
+      <p>Compare sentiment index with revenue movement using existing analytics data.</p>
+    </div>
+  </div>
+  <div class="chart-container">
+    <canvas id="sentimentSales"></canvas>
+  </div>
+</section>
+
+<section class="section-card">
+  <div class="section-card__header">
+    <div>
+      <h5>Sentiment Trend Over Time</h5>
+      <p>Average sentiment score by review date.</p>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle data-table">
+      <thead><tr><th>Date</th><th>Average Sentiment Score</th></tr></thead>
+      <tbody>
+        {% for t in intelligence.sentiment_trend %}
+        <tr><td>{{ t.date }}</td><td>{{ t.avg_score }}</td></tr>
+        {% else %}
+        <tr><td colspan="2"><div class="empty-state">No trend data yet.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="row g-3">
   <div class="col-md-4">
-    <div class="card h-100"><div class="card-body">
-      <h6>Sentiment Distribution</h6>
-      <ul class="mb-0">
-        <li>Positive: {{ intelligence.distribution.positive }}</li>
-        <li>Neutral: {{ intelligence.distribution.neutral }}</li>
-        <li>Negative: {{ intelligence.distribution.negative }}</li>
-      </ul>
-    </div></div>
+    <section class="section-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Sentiment Totals</h5>
+          <p>Current filtered distribution.</p>
+        </div>
+      </div>
+      <div class="action-list">
+        <div class="action-list__item"><strong>Positive:</strong> {{ intelligence.distribution.positive }}</div>
+        <div class="action-list__item"><strong>Neutral:</strong> {{ intelligence.distribution.neutral }}</div>
+        <div class="action-list__item"><strong>Negative:</strong> {{ intelligence.distribution.negative }}</div>
+      </div>
+    </section>
   </div>
   <div class="col-md-8">
-    <div class="card h-100"><div class="card-body">
-      <h6>Issue Tagging (Negative Feedback)</h6>
+    <section class="section-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Issue Tagging (Negative Feedback)</h5>
+          <p>Common problem themes from negative reviews.</p>
+        </div>
+      </div>
       <div class="table-responsive">
-        <table class="table table-sm table-striped mb-0">
+        <table class="table table-sm table-striped align-middle data-table mb-0">
           <thead><tr><th>Issue Tag</th><th>Count</th></tr></thead>
           <tbody>
             {% for i in intelligence.issue_breakdown %}
             <tr><td>{{ i.issue_tag }}</td><td>{{ i.count }}</td></tr>
             {% else %}
-            <tr><td colspan="2" class="text-muted">No negative issue tags yet.</td></tr>
+            <tr><td colspan="2"><div class="empty-state">No negative issue tags yet.</div></td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
-    </div></div>
+    </section>
   </div>
 </div>
 
-<div class="card mt-3">
-  <div class="card-body">
-    <h6>Platform / Source Breakdown</h6>
-    <div class="table-responsive">
-      <table class="table table-sm table-striped">
-        <thead><tr><th>Source</th><th>Positive</th><th>Neutral</th><th>Negative</th><th>Total</th></tr></thead>
-        <tbody>
-          {% for s in intelligence.source_breakdown %}
-          <tr><td>{{ s.source }}</td><td>{{ s.positive }}</td><td>{{ s.neutral }}</td><td>{{ s.negative }}</td><td>{{ s.total }}</td></tr>
-          {% else %}
-          <tr><td colspan="5" class="text-muted">No source data yet.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+<section class="section-card">
+  <div class="section-card__header">
+    <div>
+      <h5>Platform / Source Breakdown</h5>
+      <p>Sentiment distribution by feedback source.</p>
     </div>
   </div>
-</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle data-table">
+      <thead><tr><th>Source</th><th>Positive</th><th>Neutral</th><th>Negative</th><th>Total</th></tr></thead>
+      <tbody>
+        {% for s in intelligence.source_breakdown %}
+        <tr><td>{{ s.source }}</td><td>{{ s.positive }}</td><td>{{ s.neutral }}</td><td>{{ s.negative }}</td><td>{{ s.total }}</td></tr>
+        {% else %}
+        <tr><td colspan="5"><div class="empty-state">No source data yet.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 
-<div class="card mt-3">
-  <div class="card-body">
-    <h6>Critical Alerts (Negative Feedback)</h6>
-    <div class="table-responsive">
-      <table class="table table-sm table-striped">
-        <thead><tr><th>Date</th><th>Source</th><th>Rating</th><th>Issue Tag</th><th>Comment</th></tr></thead>
-        <tbody>
-          {% for a in intelligence.critical_alerts %}
-          <tr><td>{{ a.date }}</td><td>{{ a.source }}</td><td>{{ a.rating }}</td><td>{{ a.issue_tag }}</td><td>{{ a.text }}</td></tr>
-          {% else %}
-          <tr><td colspan="5" class="text-muted">No critical alerts.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+<section class="section-card">
+  <div class="section-card__header">
+    <div>
+      <h5>Critical Alerts (Negative Feedback)</h5>
+      <p>High-priority negative reviews that may need follow-up.</p>
     </div>
   </div>
-</div>
-
-<div class="card mt-3">
-  <div class="card-body">
-    <h6>Recommendations</h6>
-    <ul class="mb-0">
-      {% for rec in intelligence.recommendations %}
-      <li><strong>{{ rec.issue_tag }}:</strong> {{ rec.recommendation }}</li>
-      {% endfor %}
-    </ul>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle data-table">
+      <thead><tr><th>Date</th><th>Source</th><th>Rating</th><th>Issue Tag</th><th>Comment</th></tr></thead>
+      <tbody>
+        {% for a in intelligence.critical_alerts %}
+        <tr><td>{{ a.date }}</td><td>{{ a.source }}</td><td>{{ a.rating }}</td><td>{{ a.issue_tag }}</td><td>{{ a.text }}</td></tr>
+        {% else %}
+        <tr><td colspan="5"><div class="empty-state">No critical alerts.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
-</div>
+</section>
+
+<section class="section-card">
+  <div class="section-card__header">
+    <div>
+      <h5>Recommendations</h5>
+      <p>Action suggestions based on current issue tagging.</p>
+    </div>
+  </div>
+  <div class="action-list">
+    {% for rec in intelligence.recommendations %}
+    <div class="action-list__item"><strong>{{ rec.issue_tag }}:</strong> {{ rec.recommendation }}</div>
+    {% endfor %}
+  </div>
+</section>
 
 <script id="chart-data" type="application/json">{{ metrics|tojson }}</script>
 {% endblock %}

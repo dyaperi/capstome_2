@@ -1,51 +1,143 @@
 {% extends 'base.html' %}
 {% block content %}
-<h3>Sales Entry Form</h3>
-<form method="post" class="card card-body mb-3">
-  <input type="hidden" name="sale_id" value="{{ editing.id if editing else '' }}">
-  <div class="row g-2">
-    <div class="col-md-2">
-      <label class="form-label">Date</label>
-      <input type="date" class="form-control" name="sale_date" value="{{ editing.sale_date if editing else today }}" required>
-    </div>
-    <div class="col-md-2">
-      <label class="form-label">Menu Item</label>
-      <select class="form-select" name="menu_item_id" required>
-        <option value="" disabled {% if not editing %}selected{% endif %}>Select menu item</option>
-        {% for i in items %}<option value="{{ i.id }}" {% if editing and editing.menu_item_id==i.id %}selected{% endif %}>{{ i.item_name }}</option>{% endfor %}
-      </select>
-      <small class="form-help">Choose one active menu item.</small>
-    </div>
-    <div class="col-md-1">
-      <label class="form-label">Qty</label>
-      <input type="number" min="1" step="1" class="form-control" name="quantity" value="{{ editing.quantity if editing else '' }}" required>
-    </div>
-    <div class="col-md-2">
-      <label class="form-label">Unit Price</label>
-      <input type="number" min="0" step="0.01" class="form-control" name="unit_price" value="{{ editing.unit_price if editing else '' }}" placeholder="0.00" required>
-    </div>
-    <div class="col-md-2">
-      <label class="form-label">Unit Cost</label>
-      <input type="number" min="0" step="0.01" class="form-control" name="unit_cost" value="{{ editing.unit_cost if editing else '' }}" placeholder="0.00" required>
-    </div>
-    <div class="col-md-2">
-      <label class="form-label">Extra Expense</label>
-      <input type="number" min="0" step="0.01" class="form-control" name="extra_expense" value="{{ editing.extra_expense if editing else 0 }}" placeholder="0.00">
-    </div>
-    <div class="col-md-1">
-      <label class="form-label">Channel</label>
-      <select class="form-select" name="channel" required>
-        <option value="Walk-in" {% if not editing or editing.channel == 'Walk-in' %}selected{% endif %}>Walk-in</option>
-        <option value="Delivery" {% if editing and editing.channel == 'Delivery' %}selected{% endif %}>Delivery</option>
-        <option value="Takeaway" {% if editing and editing.channel == 'Takeaway' %}selected{% endif %}>Takeaway</option>
-      </select>
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Daily finance</p>
+    <h2>{{ 'Edit Sales Record' if editing else 'Sales Entry' }}</h2>
+    <p class="text-muted mb-0">Record item sales and channel while price and cost come from Menu Engineering.</p>
+  </div>
+</div>
+
+<section class="section-card">
+  <div class="section-card__header">
+    <div>
+      <h5>{{ 'Update sales record' if editing else 'Add sales record' }}</h5>
+      <p>Choose a menu item; current price and unit cost are auto-filled and saved as a historical snapshot.</p>
     </div>
   </div>
-  <button class="btn btn-primary mt-3">{{ 'Update' if editing else 'Save' }} Sales</button>
-  {% if editing %}<a class="btn btn-secondary mt-3" href="{{ url_for('sales_entry') }}">Cancel</a>{% endif %}
-</form>
-<table class="table table-sm table-striped">
-  <thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Price</th><th>Cost</th><th>Actions</th></tr></thead>
-  <tbody>{% for s in recent %}<tr><td>{{ s.sale_date }}</td><td>{{ s.menu_item.item_name }}</td><td>{{ s.quantity }}</td><td>{{ s.unit_price }}</td><td>{{ s.unit_cost }}</td><td class="d-flex gap-1"><a class="btn btn-sm btn-warning" href="{{ url_for('sales_entry', edit=s.id) }}">Edit</a><form method="post" action="{{ url_for('sales_delete', sale_id=s.id) }}" onsubmit="return confirm('Delete this sales row?');"><button class="btn btn-sm btn-danger" type="submit">Delete</button></form></td></tr>{% endfor %}</tbody>
-</table>
+  <form method="post" class="entry-form">
+    <input type="hidden" name="sale_id" value="{{ editing.id if editing else '' }}">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Sale date</label>
+        <input type="date" class="form-control" name="sale_date" value="{{ editing.sale_date if editing else today }}" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Menu item</label>
+        <select class="form-select" name="menu_item_id" id="menuItemSelect" required>
+          {% for i in items %}
+          <option value="{{ i.id }}" {% if editing and editing.menu_item_id==i.id %}selected{% endif %}>{{ i.item_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Quantity</label>
+        <input type="number" min="1" step="1" class="form-control" name="quantity" value="{{ editing.quantity if editing else '' }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Unit price (RM)</label>
+        <input type="number" min="0" step="0.01" class="form-control" id="unitPriceDisplay" value="{{ editing.unit_price if editing else '' }}" readonly>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Unit cost (RM)</label>
+        <input type="number" min="0" step="0.01" class="form-control" id="unitCostDisplay" value="{{ editing.unit_cost if editing else '' }}" readonly>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Extra expense (RM)</label>
+        <input type="number" min="0" step="0.01" class="form-control" name="extra_expense" value="{{ editing.extra_expense if editing else 0 }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Sales channel</label>
+        <select class="form-select" name="channel">
+          {% for channel in sales_channels %}
+          <option {% if editing and editing.channel==channel or (not editing and channel=='Walk-in') %}selected{% endif %}>{{ channel }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary">{{ 'Update sales record' if editing else 'Save sales record' }}</button>
+      {% if editing %}<a class="btn btn-outline-secondary" href="{{ url_for('sales_entry') }}">Cancel edit</a>{% endif %}
+    </div>
+  </form>
+</section>
+
+{% if session.get('role') == 'admin_analyst' %}
+<section class="section-card import-panel">
+  <div class="section-card__header">
+    <div>
+      <h5>Optional Excel import</h5>
+      <p>Bulk upload sales rows. Unit price and unit cost are fetched from Menu Engineering during import.</p>
+    </div>
+  </div>
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('import_excel', module_key='sales') }}" class="import-form">
+    <div>
+      <strong>Template columns</strong>
+      <p>{{ import_specs.sales.columns|join(', ') }}</p>
+    </div>
+    <input class="form-control" type="file" name="excel_file" accept=".xlsx,.xls" required>
+    <button class="btn btn-outline-primary">Import Excel</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="section-card">
+  <div class="section-card__header">
+    <div>
+      <h5>{{ list_filter.title }}</h5>
+      <p>{{ list_filter.summary }}</p>
+    </div>
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('export_sales_excel', view=list_filter.view, date=list_filter.date, start_date=list_filter.start_date, end_date=list_filter.end_date) }}">Export Excel</a>
+  </div>
+  <div class="list-filter-panel">
+    <div class="list-filter-actions" aria-label="Sales list filters">
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'recent' else 'btn-outline-primary' }}" href="{{ url_for('sales_entry') }}">Recent</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'all' else 'btn-outline-primary' }}" href="{{ url_for('sales_entry', view='all') }}">Show All</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'day' else 'btn-outline-secondary' }}" href="{{ url_for('sales_entry', view='day') }}">Day</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'week' else 'btn-outline-secondary' }}" href="{{ url_for('sales_entry', view='week') }}">Week</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'month' else 'btn-outline-secondary' }}" href="{{ url_for('sales_entry', view='month') }}">Month</a>
+    </div>
+    <div class="list-filter-forms">
+      <form method="get" class="list-filter-form">
+        <input type="hidden" name="view" value="date">
+        <label class="form-label" for="sales-filter-date">Specific date</label>
+        <input id="sales-filter-date" type="date" class="form-control form-control-sm" name="date" value="{{ list_filter.date }}">
+        <button class="btn btn-sm btn-outline-primary">Apply</button>
+      </form>
+      <form method="get" class="list-filter-form list-filter-form--range">
+        <input type="hidden" name="view" value="range">
+        <label class="form-label" for="sales-filter-start">Date range</label>
+        <input id="sales-filter-start" type="date" class="form-control form-control-sm" name="start_date" value="{{ list_filter.start_date }}">
+        <input type="date" class="form-control form-control-sm" name="end_date" value="{{ list_filter.end_date }}" aria-label="End date">
+        <button class="btn btn-sm btn-outline-primary">Apply</button>
+      </form>
+    </div>
+    <div class="list-filter-meta">{{ list_filter.count }} record{{ '' if list_filter.count == 1 else 's' }} shown</div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped table-hover align-middle data-table">
+      <thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Price</th><th>Cost</th><th class="text-end">Actions</th></tr></thead>
+      <tbody>
+      {% for s in recent %}
+        <tr>
+          <td>{{ s.sale_date }}</td>
+          <td>{{ s.menu_item.item_name }}</td>
+          <td>{{ s.quantity }}</td>
+          <td>RM{{ '%.2f'|format(s.unit_price) }}</td>
+          <td>RM{{ '%.2f'|format(s.unit_cost) }}</td>
+          <td>
+            <div class="table-actions">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('sales_entry', edit=s.id) }}">Edit</a>
+              <form method="post" action="{{ url_for('sales_delete', sale_id=s.id) }}" onsubmit="return confirm('Delete this sales row?');"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6"><div class="empty-state">No sales records match this view. Try Show All or adjust the date filter.</div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<script id="sales-menu-data" type="application/json">{{ item_snapshots|tojson }}</script>
 {% endblock %}

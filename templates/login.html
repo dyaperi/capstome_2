@@ -1,25 +1,142 @@
 {% extends 'base.html' %}
+{% block body_class %}login-page{% endblock %}
 {% block content %}
-<div class="row justify-content-center mt-5">
-  <div class="col-md-4">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h4 class="mb-3">Login</h4>
-        <p class="text-muted mb-1">Admin / Analyst: <b>admin / admin123</b></p>
-        <p class="text-muted">Client: <b>client / client123</b></p>
-        <form method="post">
-          <div class="mb-3">
-            <label class="form-label">Username</label>
-            <input class="form-control" name="username" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Password</label>
-            <input type="password" class="form-control" name="password" required>
-          </div>
-          <button class="btn btn-primary w-100" type="submit">Sign In</button>
-        </form>
+{% set active_portal = selected_portal|default('consultant') %}
+<section class="login-screen">
+  <div class="login-backdrop" aria-hidden="true"></div>
+  <div class="login-card" role="region" aria-label="ServeIQ Analytics login">
+    <div class="login-card__header">
+      <div class="login-logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" role="img" focusable="false">
+          <path d="M4 19V5" />
+          <path d="M4 19h16" />
+          <path d="M8 16v-5" />
+          <path d="M12 16V8" />
+          <path d="M16 16v-7" />
+          <path d="M20 16v-3" />
+        </svg>
       </div>
+      <p class="login-eyebrow">ServeIQ Analytics</p>
+      <h1>F&amp;B Intelligence &amp; Consultation Platform</h1>
+    </div>
+
+    <div class="login-card__body">
+      <div class="login-tabs" role="tablist" aria-label="Choose login view">
+        <button
+          class="login-tab {% if active_portal == 'consultant' %}active{% endif %}"
+          type="button"
+          id="consultant-tab"
+          role="tab"
+          aria-selected="{{ 'true' if active_portal == 'consultant' else 'false' }}"
+          aria-controls="login-panel"
+          data-login-role="consultant"
+          data-heading="Consultant Portal"
+          data-subtitle="Login to upload data and generate reports."
+          data-button="Access Workspace"
+        >
+          Consultant
+        </button>
+        <button
+          class="login-tab {% if active_portal == 'client' %}active{% endif %}"
+          type="button"
+          id="client-tab"
+          role="tab"
+          aria-selected="{{ 'true' if active_portal == 'client' else 'false' }}"
+          aria-controls="login-panel"
+          data-login-role="client"
+          data-heading="Client Access"
+          data-subtitle="View your dashboard and monthly insights."
+          data-button="View Dashboard"
+        >
+          Client View
+        </button>
+      </div>
+
+      <div class="login-panel" id="login-panel" role="tabpanel" aria-labelledby="{{ 'client-tab' if active_portal == 'client' else 'consultant-tab' }}">
+        <div class="login-copy">
+          <h2 id="login-heading">{{ 'Client Access' if active_portal == 'client' else 'Consultant Portal' }}</h2>
+          <p id="login-subtitle">{{ 'View your dashboard and monthly insights.' if active_portal == 'client' else 'Login to upload data and generate reports.' }}</p>
+        </div>
+
+        <form method="post" action="{{ url_for('login') }}" class="login-form">
+          <input type="hidden" name="login_role_view" id="login-role-view" value="{{ active_portal }}">
+
+          <div class="login-field">
+            <label class="form-label" for="username">Email address</label>
+            <div class="login-input-wrap">
+              <span class="login-input-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img" focusable="false">
+                  <path d="M4 6h16v12H4z" />
+                  <path d="m4 7 8 6 8-6" />
+                </svg>
+              </span>
+              <input
+                class="form-control login-input"
+                id="username"
+                name="username"
+                type="text"
+                inputmode="email"
+                autocomplete="username"
+                placeholder="name@company.com"
+                required
+              >
+            </div>
+          </div>
+
+          <div class="login-field">
+            <label class="form-label" for="password">Password</label>
+            <div class="login-input-wrap">
+              <span class="login-input-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img" focusable="false">
+                  <rect x="5" y="11" width="14" height="10" rx="2" />
+                  <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+                </svg>
+              </span>
+              <input
+                class="form-control login-input"
+                id="password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Enter your password"
+                required
+              >
+            </div>
+          </div>
+
+          <button class="btn login-submit" id="login-submit" type="submit">{{ 'View Dashboard' if active_portal == 'client' else 'Access Workspace' }}</button>
+        </form>
+
+        <div class="login-demo small">
+          <div><strong>Consultant:</strong> admin / admin123</div>
+          <div><strong>Client:</strong> client / client123</div>
+        </div>
+      </div>
+
+      <div class="login-divider" aria-hidden="true"></div>
+      <p class="login-footer">Protected System. Unauthorized access is prohibited.</p>
     </div>
   </div>
-</div>
+</section>
+
+<script>
+  document.querySelectorAll('.login-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const tabs = document.querySelectorAll('.login-tab');
+      tabs.forEach((item) => {
+        item.classList.remove('active');
+        item.setAttribute('aria-selected', 'false');
+      });
+
+      tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
+
+      document.getElementById('login-panel').setAttribute('aria-labelledby', tab.id);
+      document.getElementById('login-heading').textContent = tab.dataset.heading;
+      document.getElementById('login-subtitle').textContent = tab.dataset.subtitle;
+      document.getElementById('login-submit').textContent = tab.dataset.button;
+      document.getElementById('login-role-view').value = tab.dataset.loginRole;
+    });
+  });
+</script>
 {% endblock %}

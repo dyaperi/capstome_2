@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% block content %}
+{% set total_clients = summaries|length %}
+{% set active_clients = summaries|selectattr('status', 'equalto', 'active')|list|length %}
+
+<div class="client-management-page">
+  <div class="client-management-header">
+    <div>
+      <h2>Client Management</h2>
+      <p>Monitor client access, manage subscriptions, and provide support.</p>
+    </div>
+    <button class="btn client-primary-action" type="button" data-modal-open="onboard-client-modal">
+      <span aria-hidden="true">+</span>
+      Onboard New Client
+    </button>
+  </div>
+
+  <section class="client-toolbar-card">
+    <form class="client-table-search" method="get" action="{{ url_for('clients_page') }}">
+      <input type="hidden" name="status" value="{{ status_filter }}">
+      <span aria-hidden="true">&#128269;</span>
+      <input name="q" value="{{ search or '' }}" placeholder="Search clients by name or email..." aria-label="Search clients by name or email">
+    </form>
+    <div class="client-summary-counts">
+      <span><strong>{{ active_clients }}</strong> Active</span>
+      <span><strong>{{ total_clients }}</strong> Total</span>
+    </div>
+  </section>
+
+  <section class="client-table-card">
+    <div class="client-table">
+      <div class="client-table__head">
+        <div>Business Name</div>
+        <div>Email</div>
+        <div>Status</div>
+        <div>Created</div>
+        <div>Last Login</div>
+        <div>Actions</div>
+      </div>
+
+      {% for row in summaries %}
+      {% set client = row.client %}
+      <div class="client-table__row">
+        <div class="client-business-cell">
+          <span class="client-avatar">{{ client.full_name[:1]|upper }}</span>
+          <div>
+            <strong>{{ client.full_name }}</strong>
+            <small>ID: u_{{ client.id }}</small>
+          </div>
+        </div>
+        <div class="client-email-cell">
+          <span>{{ client.username }}</span>
+          <small>Temp Pass: client123</small>
+        </div>
+        <div>
+          <span class="client-status client-status--{{ row.status }}">{{ row.status }}</span>
+        </div>
+        <div class="client-muted-cell">
+          {{ row.created_at.strftime('%m/%d/%Y') if row.created_at else '-' }}
+        </div>
+        <div class="client-muted-cell">
+          {{ row.last_login_at.strftime('%m/%d/%Y') if row.last_login_at else 'Never' }}
+        </div>
+        <div class="client-actions-cell">
+          <button class="client-action-trigger" type="button" data-client-actions aria-label="Open actions for {{ client.full_name }}">
+            &hellip;
+          </button>
+          <div class="client-action-menu" role="menu">
+            <a href="{{ url_for('open_client_portfolio', client_id=client.id) }}" role="menuitem">
+              <span class="client-menu-icon client-menu-icon--view" aria-hidden="true">&#9675;</span>
+              View Dashboard
+            </a>
+            <form method="post" action="{{ url_for('reset_client_password', client_id=client.id) }}" role="none">
+              <input type="hidden" name="password" value="client123">
+              <button type="submit" role="menuitem">
+                <span class="client-menu-icon client-menu-icon--reset" aria-hidden="true">&#8635;</span>
+                Reset Password
+              </button>
+            </form>
+            <form method="post" action="{{ url_for('client_status', client_id=client.id) }}" role="none">
+              <input type="hidden" name="status" value="{{ 'inactive' if row.status == 'active' else 'active' }}">
+              <button class="client-danger-action" type="submit" role="menuitem">
+                <span class="client-menu-icon client-menu-icon--danger" aria-hidden="true">&#8855;</span>
+                {{ 'Deactivate' if row.status == 'active' else 'Activate' }}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="client-table-empty">
+        No clients match the current search.
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<div class="client-modal" id="onboard-client-modal" aria-hidden="true">
+  <div class="client-modal__backdrop" data-modal-close></div>
+  <section class="client-modal__panel" role="dialog" aria-modal="true" aria-labelledby="onboard-client-title">
+    <div class="client-modal__header">
+      <div>
+        <h5 id="onboard-client-title">Onboard New Client</h5>
+        <p>Create a client account and portfolio workspace.</p>
+      </div>
+      <button type="button" class="client-modal__close" data-modal-close aria-label="Close onboarding form">&times;</button>
+    </div>
+    <form method="post" class="client-modal-form">
+      <div>
+        <label class="form-label">Business name</label>
+        <input class="form-control" name="full_name" placeholder="Demo Cafe Sdn Bhd" required>
+      </div>
+      <div>
+        <label class="form-label">Email / username</label>
+        <input class="form-control" name="username" placeholder="client@example.com" required>
+      </div>
+      <div>
+        <label class="form-label">Temporary password</label>
+        <input class="form-control" type="password" name="password" placeholder="Defaults to client123">
+      </div>
+      <div>
+        <label class="form-label">Status</label>
+        <select class="form-select" name="status">
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+      <div class="client-modal__actions">
+        <button class="btn btn-outline-secondary" type="button" data-modal-close>Cancel</button>
+        <button class="btn client-primary-action" type="submit">Add Client</button>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,441 @@
+{% extends 'base.html' %}
+{% block content %}
+{% set is_admin = session.get('role') == 'admin_analyst' %}
+<div class="page-header inventory-page-header">
+  <div>
+    <p class="eyebrow">Stock Monitoring</p>
+    <h2>Ingredient Stock List</h2>
+    <p class="text-muted mb-0">A practical view of stock health, reorder needs, and recent movement activity.</p>
+  </div>
+  <div class="inventory-page-header__actions">
+    <a class="btn btn-outline-secondary" href="{{ url_for('inventory_page') }}">Overview</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('inventory_page', import=1) }}">Import Excel</a>
+    <a class="btn btn-primary" href="{{ url_for('inventory_page', compose=1) }}">Add Ingredient</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6 col-xl-3">
+    <div class="inventory-stat-card">
+      <span class="inventory-stat-card__label">Active Items</span>
+      <strong>{{ inventory_summary.total_items }}</strong>
+      <small>{{ inventory_summary.inactive_count }} inactive item{{ '' if inventory_summary.inactive_count == 1 else 's' }}</small>
+    </div>
+  </div>
+  <div class="col-md-6 col-xl-3">
+    <div class="inventory-stat-card inventory-stat-card--warning">
+      <span class="inventory-stat-card__label">Low Stock</span>
+      <strong>{{ inventory_summary.low_stock_count }}</strong>
+      <small>Needs attention soon</small>
+    </div>
+  </div>
+  <div class="col-md-6 col-xl-3">
+    <div class="inventory-stat-card inventory-stat-card--danger">
+      <span class="inventory-stat-card__label">Out of Stock</span>
+      <strong>{{ inventory_summary.out_of_stock_count }}</strong>
+      <small>Immediate action needed</small>
+    </div>
+  </div>
+  <div class="col-md-6 col-xl-3">
+    <div class="inventory-stat-card inventory-stat-card--success">
+      <span class="inventory-stat-card__label">Recently Restocked</span>
+      <strong>{{ inventory_summary.recent_restock_count }}</strong>
+      <small>Last 7 days</small>
+    </div>
+  </div>
+</div>
+
+{% if inventory_summary.low_stock_items %}
+<section class="section-card inventory-alert-panel mb-4">
+  <div class="section-card__header">
+    <div>
+      <h5>Low-stock alerts</h5>
+      <p>These items are already at or below the reorder threshold.</p>
+    </div>
+  </div>
+  <div class="inventory-alert-list">
+    {% for item in inventory_summary.low_stock_items[:6] %}
+    <a href="{{ url_for('inventory_detail', item_id=item.id) }}" class="inventory-alert-item">
+      <strong>{{ item.ingredient_name }}</strong>
+      <span>{{ '%.2f'|format(item.current_stock) }} {{ item.unit }} left</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="section-card inventory-stock-board mb-4">
+  <div class="inventory-stock-board__header">
+    <div>
+      <h5>Ingredient Stock List</h5>
+      <p>Use the filters below, then open an item to review or record stock movement.</p>
+    </div>
+    <div class="inventory-stock-board__tools">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('inventory_page', compose=1) }}">Add Item</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('inventory_page', import=1) }}">Import Excel</a>
+      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('export_inventory_items_excel', mode='active', status=inventory_filters.status, q=inventory_filters.q, category=inventory_filters.category) }}">Export Active</a>
+      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('export_stock_movements_excel') }}">Export Movements</a>
+      {% if inventory_filters.has_filters %}
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('inventory_page') }}">Clear Filters</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="inventory-toolbar">
+    <div class="inventory-filter-tabs" aria-label="Inventory status filters">
+      <a class="btn btn-sm {{ 'btn-primary' if inventory_filters.status == 'all' else 'btn-outline-primary' }}" href="{{ url_for('inventory_page', q=inventory_filters.q, category=inventory_filters.category) }}">All Active</a>
+      <a class="btn btn-sm {{ 'btn-primary' if inventory_filters.status == 'in_stock' else 'btn-outline-primary' }}" href="{{ url_for('inventory_page', status='in_stock', q=inventory_filters.q, category=inventory_filters.category) }}">In Stock</a>
+      <a class="btn btn-sm {{ 'btn-primary' if inventory_filters.status == 'low_stock' else 'btn-outline-primary' }}" href="{{ url_for('inventory_page', status='low_stock', q=inventory_filters.q, category=inventory_filters.category) }}">Low Stock</a>
+      <a class="btn btn-sm {{ 'btn-primary' if inventory_filters.status == 'out_of_stock' else 'btn-outline-primary' }}" href="{{ url_for('inventory_page', status='out_of_stock', q=inventory_filters.q, category=inventory_filters.category) }}">Out of Stock</a>
+    </div>
+    <form method="get" class="inventory-search-form inventory-search-form--inline">
+      <input type="hidden" name="status" value="{{ inventory_filters.status }}">
+      <div>
+        <label class="form-label" for="inventory-search">Search</label>
+        <input id="inventory-search" class="form-control" name="q" value="{{ inventory_filters.q }}" placeholder="Ingredient or category">
+      </div>
+      <div>
+        <label class="form-label" for="inventory-category-filter">Category</label>
+        <select id="inventory-category-filter" class="form-select" name="category">
+          <option value="">All categories</option>
+          {% for category in category_options %}
+          <option value="{{ category }}" {% if inventory_filters.category == category %}selected{% endif %}>{{ category }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="inventory-search-actions">
+        <button class="btn btn-primary">Apply</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="inventory-stock-table">
+    <div class="inventory-stock-table__head {% if is_admin %}inventory-stock-table__head--admin{% endif %}">
+      <span>Ingredient Name</span>
+      <span>Category</span>
+      <span>Stock Level</span>
+      <span>Unit Cost</span>
+      <span>Total Value</span>
+      <span>Status</span>
+      <span class="text-end">Actions</span>
+    </div>
+
+    {% for item in items %}
+    {% set status_label = stock_label(item) %}
+    <div class="inventory-stock-row {% if is_admin %}inventory-stock-row--admin{% endif %}">
+      <div class="inventory-stock-row__ingredient">
+        <div class="inventory-stock-avatar">{{ item.ingredient_name[:2]|upper }}</div>
+        <div>
+          <a class="inventory-stock-row__title" href="{{ url_for('inventory_detail', item_id=item.id) }}">{{ item.ingredient_name }}</a>
+          <div class="inventory-stock-row__meta">INV-{{ '%03d'|format(item.id) }}{% if is_admin and item.client %} - {{ item.client.full_name }}{% endif %}</div>
+        </div>
+      </div>
+
+      <div class="inventory-stock-row__category">
+        <strong>{{ item.category }}</strong>
+        <span>{{ item.supplier_name or 'No supplier listed' }}</span>
+      </div>
+
+      <div class="inventory-stock-row__stock">
+        <strong>{{ '%.2f'|format(item.current_stock) }} {{ item.unit }}</strong>
+        <div class="inventory-stock-progress">
+          <span class="inventory-stock-progress__bar inventory-stock-progress__bar--{{ status_label|lower|replace(' ', '-') }}" style="width: {{ stock_progress(item) }}%;"></span>
+        </div>
+        <small>Min {{ '%.2f'|format(item.minimum_stock) }} {{ item.unit }}</small>
+      </div>
+
+      <div class="inventory-stock-row__value">
+        <span>RM {{ '%.2f'|format(item.cost_per_unit) }}</span>
+      </div>
+
+      <div class="inventory-stock-row__value inventory-stock-row__value--total">
+        <strong>RM {{ '%.2f'|format(total_value(item)) }}</strong>
+      </div>
+
+      <div class="inventory-stock-row__status">
+        <span class="badge text-bg-success">Active</span>
+        <span class="badge {{ stock_badge_class(item) }}">{{ status_label }}</span>
+      </div>
+
+      <div class="inventory-stock-row__actions">
+        <a class="btn btn-sm btn-outline-success" href="{{ url_for('inventory_movement', item_id=item.id) }}">Update Stock</a>
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('inventory_detail', item_id=item.id) }}">View</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('inventory_page', edit=item.id) }}">Edit</a>
+        <form method="post" action="{{ url_for('inventory_status', item_id=item.id) }}" onsubmit="return confirm('Deactivate this inventory item? It will move to the inactive list.');">
+          <input type="hidden" name="status" value="inactive">
+          <button class="btn btn-sm btn-outline-warning" type="submit">Deactivate</button>
+        </form>
+        <form method="post" action="{{ url_for('inventory_delete', item_id=item.id) }}" onsubmit="return confirm('Delete this inventory item and movement history?');">
+          <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-state empty-state--inventory">
+      {% if inventory_filters.has_filters %}
+      No inventory items match this view yet. Try a different status, keyword, or category.
+      {% else %}
+      No inventory items yet. Add your first ingredient to start tracking stock.
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="inventory-stock-board__footer">
+    <div class="inventory-filter-meta">
+      Showing {{ inventory_pagination.showing_from }}-{{ inventory_pagination.showing_to }} of {{ inventory_pagination.total }} item{{ '' if inventory_pagination.total == 1 else 's' }}
+    </div>
+    {% if inventory_pagination.total_pages > 1 %}
+    <nav aria-label="Inventory pages">
+      <ul class="pagination pagination-sm inventory-pagination mb-0">
+        <li class="page-item {{ 'disabled' if inventory_pagination.page == 1 else '' }}">
+          <a class="page-link" href="{{ url_for('inventory_page', page=inventory_pagination.page - 1, status=inventory_filters.status, q=inventory_filters.q, category=inventory_filters.category) }}">Previous</a>
+        </li>
+        {% for page_number in range(1, inventory_pagination.total_pages + 1) %}
+        <li class="page-item {{ 'active' if page_number == inventory_pagination.page else '' }}">
+          <a class="page-link" href="{{ url_for('inventory_page', page=page_number, status=inventory_filters.status, q=inventory_filters.q, category=inventory_filters.category) }}">{{ page_number }}</a>
+        </li>
+        {% endfor %}
+        <li class="page-item {{ 'disabled' if inventory_pagination.page == inventory_pagination.total_pages else '' }}">
+          <a class="page-link" href="{{ url_for('inventory_page', page=inventory_pagination.page + 1, status=inventory_filters.status, q=inventory_filters.q, category=inventory_filters.category) }}">Next</a>
+        </li>
+      </ul>
+    </nav>
+    {% endif %}
+  </div>
+</section>
+
+{% if inventory_summary.inactive_count or inventory_filters.has_filters %}
+<section class="section-card inventory-stock-board inventory-stock-board--inactive mb-4">
+  <div class="inventory-stock-board__header">
+    <div>
+      <h5>Inactive Inventory Items</h5>
+      <p>Deactivated ingredients are kept here for reference and can be restored when needed.</p>
+    </div>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('export_inventory_items_excel', mode='inactive', q=inventory_filters.q, category=inventory_filters.category) }}">Export Inactive</a>
+  </div>
+
+  <div class="inventory-stock-table inventory-stock-table--inactive">
+    <div class="inventory-stock-table__head">
+      <span>Ingredient Name</span>
+      <span>Category</span>
+      <span>Stock Level</span>
+      <span>Unit Cost</span>
+      <span>Total Value</span>
+      <span>Status</span>
+      <span class="text-end">Actions</span>
+    </div>
+
+    {% for item in inactive_items %}
+    {% set status_label = stock_label(item) %}
+    <div class="inventory-stock-row inventory-stock-row--inactive">
+      <div class="inventory-stock-row__ingredient">
+        <div class="inventory-stock-avatar inventory-stock-avatar--inactive">{{ item.ingredient_name[:2]|upper }}</div>
+        <div>
+          <a class="inventory-stock-row__title" href="{{ url_for('inventory_detail', item_id=item.id) }}">{{ item.ingredient_name }}</a>
+          <div class="inventory-stock-row__meta">INV-{{ '%03d'|format(item.id) }}{% if is_admin and item.client %} - {{ item.client.full_name }}{% endif %}</div>
+        </div>
+      </div>
+
+      <div class="inventory-stock-row__category">
+        <strong>{{ item.category }}</strong>
+        <span>{{ item.supplier_name or 'No supplier listed' }}</span>
+      </div>
+
+      <div class="inventory-stock-row__stock">
+        <strong>{{ '%.2f'|format(item.current_stock) }} {{ item.unit }}</strong>
+        <div class="inventory-stock-progress">
+          <span class="inventory-stock-progress__bar inventory-stock-progress__bar--inactive" style="width: {{ stock_progress(item) }}%;"></span>
+        </div>
+        <small>Min {{ '%.2f'|format(item.minimum_stock) }} {{ item.unit }}</small>
+      </div>
+
+      <div class="inventory-stock-row__value">
+        <span>RM {{ '%.2f'|format(item.cost_per_unit) }}</span>
+      </div>
+
+      <div class="inventory-stock-row__value inventory-stock-row__value--total">
+        <strong>RM {{ '%.2f'|format(total_value(item)) }}</strong>
+      </div>
+
+      <div class="inventory-stock-row__status">
+        <span class="badge text-bg-secondary">Inactive</span>
+        <span class="badge {{ stock_badge_class(item) }}">{{ status_label }}</span>
+      </div>
+
+      <div class="inventory-stock-row__actions">
+        <form method="post" action="{{ url_for('inventory_status', item_id=item.id) }}">
+          <input type="hidden" name="status" value="active">
+          <button class="btn btn-sm btn-outline-success" type="submit">Activate</button>
+        </form>
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('inventory_detail', item_id=item.id) }}">View</a>
+        <form method="post" action="{{ url_for('inventory_delete', item_id=item.id) }}" onsubmit="return confirm('Delete this inactive inventory item and movement history?');">
+          <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-state empty-state--inventory">
+      {% if inventory_filters.has_filters %}
+      No inactive items match this search or category.
+      {% else %}
+      No inactive inventory items yet.
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-6">
+    <section class="section-card inventory-insight-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Category Distribution</h5>
+          <p>Quick view of how your tracked ingredients are spread across categories.</p>
+        </div>
+      </div>
+      {% if category_distribution %}
+      <div class="inventory-chart-shell">
+        <canvas id="inventoryCategoryChart"></canvas>
+      </div>
+      <div class="inventory-category-summary">
+        {% for category in category_distribution %}
+        <span>{{ category.label }} <strong>{{ category.value }}</strong></span>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state empty-state--inventory-panel">No inventory categories available yet. Add a few items to see the chart.</div>
+      {% endif %}
+    </section>
+  </div>
+  <div class="col-lg-6">
+    <section class="section-card inventory-insight-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Recent Stock Activity</h5>
+          <p>Latest restocks, deductions, and manual stock adjustments.</p>
+        </div>
+      </div>
+      {% if recent_activity %}
+      <div class="inventory-activity-list">
+        {% for movement in recent_activity %}
+        <a class="inventory-activity-item" href="{{ url_for('inventory_detail', item_id=movement.inventory_item.id) }}">
+          <span class="inventory-activity-item__icon inventory-activity-item__icon--{{ movement.movement_type|lower }}">
+            {% if movement.movement_type == 'IN' %}+{% elif movement.movement_type == 'OUT' %}-{% else %}~{% endif %}
+          </span>
+          <div class="inventory-activity-item__body">
+            <strong>
+              {% if movement.movement_type == 'IN' %}
+              {{ movement.inventory_item.ingredient_name }} Restocked
+              {% elif movement.movement_type == 'OUT' %}
+              {{ movement.inventory_item.ingredient_name }} Usage Logged
+              {% else %}
+              Inventory Adjustment: {{ movement.inventory_item.ingredient_name }}
+              {% endif %}
+            </strong>
+            <span>{{ activity_time_label(movement) }} - {% if movement.movement_type == 'OUT' %}-{% elif movement.movement_type == 'IN' %}+{% endif %}{{ '%.2f'|format(movement.quantity) }} {{ movement.inventory_item.unit }}</span>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      <div class="inventory-activity-footer">
+        <a href="{{ url_for('inventory_detail', item_id=recent_activity[0].inventory_item.id) }}">Open latest movement history</a>
+      </div>
+      {% else %}
+      <div class="empty-state empty-state--inventory-panel">No stock activity yet. Record a restock or adjustment to build your audit trail.</div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+
+{% if show_import %}
+<section class="section-card import-panel inventory-import-panel mb-4">
+  <div class="section-card__header">
+    <div>
+      <h5>Optional Excel import</h5>
+      <p>Bulk upload inventory items with the fixed template format. Manual entry remains available for day-to-day updates.</p>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('inventory_page') }}">Close Import</a>
+  </div>
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('import_excel', module_key='inventory_items') }}" class="import-form inventory-import-form">
+    <div>
+      <strong>Template columns</strong>
+      <p>{{ import_specs.inventory_items.columns|join(', ') }}</p>
+    </div>
+    <input class="form-control" type="file" name="excel_file" accept=".xlsx,.xls" required>
+    <button class="btn btn-outline-primary">Import Excel</button>
+  </form>
+</section>
+{% endif %}
+
+{% if show_form %}
+<section class="section-card inventory-form-card">
+  <div class="section-card__header">
+    <div>
+      <h5>{{ 'Update inventory item' if editing else 'Add inventory item' }}</h5>
+      <p>Keep the setup practical: ingredient, unit, stock on hand, and reorder level.</p>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('inventory_page') }}">Close Form</a>
+  </div>
+
+  <form method="post" class="entry-form">
+    <input type="hidden" name="inventory_item_id" value="{{ editing.id if editing else '' }}">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Ingredient name</label>
+        <input class="form-control" name="ingredient_name" value="{{ editing.ingredient_name if editing else '' }}" placeholder="e.g. Chicken breast" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Category</label>
+        <input class="form-control" name="category" value="{{ editing.category if editing else '' }}" placeholder="e.g. Protein" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Unit</label>
+        <select class="form-select" name="unit" required>
+          {% for unit in inventory_units %}
+          <option value="{{ unit }}" {% if editing and editing.unit==unit %}selected{% endif %}>{{ unit }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Current stock</label>
+        <input type="number" min="0" step="0.01" class="form-control" name="current_stock" value="{{ editing.current_stock if editing else 0 }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Minimum stock</label>
+        <input type="number" min="0" step="0.01" class="form-control" name="minimum_stock" value="{{ editing.minimum_stock if editing else 0 }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Cost / unit (RM)</label>
+        <input type="number" min="0" step="0.01" class="form-control" name="cost_per_unit" value="{{ editing.cost_per_unit if editing else 0 }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Supplier</label>
+        <input class="form-control" name="supplier_name" value="{{ editing.supplier_name if editing else '' }}" placeholder="Optional">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Status</label>
+        <select class="form-select" name="status">
+          <option value="active" {% if not editing or editing.status!='inactive' %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if editing and editing.status=='inactive' %}selected{% endif %}>Inactive</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary">{{ 'Update inventory item' if editing else 'Save inventory item' }}</button>
+      {% if editing %}
+      <a class="btn btn-outline-secondary" href="{{ url_for('inventory_page') }}">Cancel edit</a>
+      {% else %}
+      <a class="btn btn-outline-secondary" href="{{ url_for('inventory_page') }}">Close form</a>
+      {% endif %}
+    </div>
+  </form>
+</section>
+{% endif %}
+
+{% if category_distribution %}
+<script id="inventory-chart-data" type="application/json">{{ category_distribution|tojson }}</script>
+{% endif %}
+{% endblock %}
