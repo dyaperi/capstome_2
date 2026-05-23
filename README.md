@@ -40,9 +40,11 @@ A Flask capstone prototype for traditional food and beverage SMEs (for example, 
 ```sql
 SOURCE schema.sql;
 ```
-2. Configure connection string (PowerShell example):
+2. Configure connection string and secret values (PowerShell example):
 ```powershell
-$env:DATABASE_URL="mysql+pymysql://root:deaperi@localhost:3306/fnb_insights"
+$env:DATABASE_URL="mysql+pymysql://root:dyaperi@localhost:3306/fnb_insights"
+$env:SECRET_KEY="replace-with-a-long-random-secret"
+$env:BASE_URL="http://127.0.0.1:5000"
 ```
 
 ## Run locally
@@ -77,10 +79,56 @@ Or run helper script:
 
 Open: `http://127.0.0.1:5000`
 
+## Deploy online
+The app exposes a module-level Flask object at the bottom of `app.py`:
+```python
+app = create_app()
+```
+
+Use this production start command:
+```bash
+gunicorn app:app
+```
+
+Do not use `gunicorn "app:create_app()"` for this project unless you remove the module-level `app` object and intentionally change the entry point.
+
+### Required environment variables
+- `DATABASE_URL` - MySQL connection URL. Use `mysql+pymysql://USER:PASSWORD@HOST:PORT/DATABASE`. If your provider gives `mysql://...`, the app converts it to `mysql+pymysql://...`.
+- `SECRET_KEY` - long random value for Flask sessions. Required when `FLASK_ENV=production` or `APP_ENV=production`.
+- `BASE_URL` - deployed public domain, for example `https://your-app.onrender.com` or `https://your-app.up.railway.app`. QR feedback links use this instead of `127.0.0.1`.
+- `FLASK_ENV` or `APP_ENV` - set to `production`.
+
+`PUBLIC_BASE_URL` is still supported as an older alias, but `BASE_URL` is preferred.
+
+### Render
+1. Push this repository to GitHub.
+2. Create a Render **Web Service** from the repository.
+3. Set runtime to Python.
+4. Build command:
+```bash
+pip install -r requirements.txt
+```
+5. Start command:
+```bash
+gunicorn app:app
+```
+6. Add environment variables: `DATABASE_URL`, `SECRET_KEY`, `BASE_URL`, and `FLASK_ENV=production`.
+7. Provision a MySQL database separately, then put its connection URL in `DATABASE_URL`.
+
+### Railway
+1. Create a Railway project from the GitHub repository.
+2. Add a MySQL database service.
+3. Add environment variables to the web service: `DATABASE_URL`, `SECRET_KEY`, `BASE_URL`, and `APP_ENV=production`.
+4. Set the start command:
+```bash
+gunicorn app:app
+```
+5. Deploy, then set `BASE_URL` to the generated Railway public domain.
+
 ## Notes
 - Primary data input is manual forms in the web app (CSV upload is not the main workflow).
 - All business records are stored in the configured SQL database and analytics are calculated from DB data.
-- Default configuration points to MySQL: `mysql+pymysql://root:deaperi@localhost:3306/fnb_insights`.
+- Default local configuration points to MySQL: `mysql+pymysql://root:dyaperi@localhost:3306/fnb_insights`.
 
 ## Troubleshooting
 - If you see `SyntaxError` with `<<<<<<< ours` in `app.py`, your local file still has unresolved Git merge conflict markers.

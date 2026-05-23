@@ -487,7 +487,11 @@ def determine_urgency_level(sentiment_label: str, rating: int, issue_tag: str, r
 
 
 def public_feedback_url(client_id: int) -> str:
-    configured_base = (current_app.config.get("PUBLIC_BASE_URL") or "").strip()
+    configured_base = (
+        current_app.config.get("BASE_URL")
+        or current_app.config.get("PUBLIC_BASE_URL")
+        or ""
+    ).strip()
     base_url = configured_base or request.host_url
     return f"{base_url.rstrip('/')}{url_for('public_feedback', client_id=client_id)}"
 
