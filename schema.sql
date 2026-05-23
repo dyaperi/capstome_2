@@ -31,7 +31,7 @@ INSERT INTO users (username, password, full_name, role, status) VALUES
   (
     'admin',
     'pbkdf2:sha256:600000$serveiq_admin_demo$0f23b17c41ee14aa5bb226e433cda8e4c8bb4dd864b6aac270f3d2b20ca391e1',
-    'SME Owner',
+    'SME Consultant',
     'admin_analyst',
     'active'
   ),

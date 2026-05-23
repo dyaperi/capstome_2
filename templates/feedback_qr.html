@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">QR Feedback</p>
+    <h2>{{ client.full_name }}</h2>
+    <p class="text-muted mb-0">Share this public form link with customers. Submissions are saved to this client portfolio.</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('clients_page') if is_staff_user else url_for('dashboard') }}">Back</a>
+</div>
+
+<section class="section-card feedback-qr-card">
+  <div class="feedback-qr-layout">
+    <div class="feedback-qr-preview">
+      <img src="{{ qr_payload.qr_image_url }}" alt="Feedback QR code for {{ client.full_name }}">
+    </div>
+    <div class="feedback-qr-details">
+      <span class="client-status client-status--{{ client.status|default('active') }}">{{ client.status|default('active') }}</span>
+      <h5>Public Feedback URL</h5>
+      <p>Customers can scan the QR code or open the link. They do not need an account.</p>
+      <div class="feedback-url-box">{{ qr_payload.feedback_url }}</div>
+      <div class="feedback-qr-actions">
+        <a class="btn btn-primary" href="{{ qr_payload.feedback_url }}" target="_blank" rel="noopener">Open Feedback Form</a>
+        <a class="btn btn-outline-primary" href="{{ qr_payload.qr_download_url }}">Download QR</a>
+        <button class="btn btn-outline-secondary" type="button" onclick="window.print()">Print QR</button>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

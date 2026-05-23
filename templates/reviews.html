@@ -130,6 +130,7 @@
     <div class="d-flex gap-2 flex-wrap">
       <a class="btn btn-sm btn-outline-primary" href="{{ url_for('export_reviews_excel', source=selected_source) }}">Export Excel</a>
       {% if qr_preview %}
+      <a class="btn btn-sm btn-outline-primary" href="{{ qr_preview.qr_page_url }}">View QR</a>
       <a class="btn btn-sm btn-outline-primary" href="{{ qr_preview.feedback_url }}" target="_blank" rel="noopener">Open QR form</a>
       {% endif %}
     </div>

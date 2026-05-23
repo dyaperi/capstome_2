@@ -2018,6 +2018,61 @@ div[class*="revenue" i] canvas {
   padding: 1.25rem;
 }
 
+.feedback-qr-card {
+  padding: 1.35rem;
+}
+
+.feedback-qr-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.feedback-qr-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.feedback-qr-preview img {
+  display: block;
+  width: min(100%, 280px);
+  height: auto;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.feedback-qr-details h5 {
+  margin: .9rem 0 .3rem;
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.feedback-qr-details p {
+  color: #64748b;
+}
+
+.feedback-url-box {
+  padding: .85rem;
+  color: #334155;
+  word-break: break-all;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.feedback-qr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem;
+  margin-top: 1rem;
+}
+
 .alert {
   border: 0;
   border-radius: 8px;
@@ -2090,6 +2145,10 @@ div[class*="revenue" i] canvas {
 
   .client-summary-counts {
     justify-content: flex-start;
+  }
+
+  .feedback-qr-layout {
+    grid-template-columns: 1fr;
   }
 
   .toolbar-form .form-control,

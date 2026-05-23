@@ -70,6 +70,10 @@
               <span class="client-menu-icon client-menu-icon--view" aria-hidden="true">&#9675;</span>
               View Dashboard
             </a>
+            <a href="{{ url_for('feedback_qr_page', client_id=client.id) }}" role="menuitem">
+              <span class="client-menu-icon client-menu-icon--view" aria-hidden="true">QR</span>
+              Feedback QR
+            </a>
             <form method="post" action="{{ url_for('reset_client_password', client_id=client.id) }}" role="none">
               <input type="hidden" name="password" value="client123">
               <button type="submit" role="menuitem">

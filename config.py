@@ -16,6 +16,7 @@ class Config:
         "DATABASE_URL",
         "mysql+pymysql://root:dyaperi@localhost:3306/fnb_insights",
     )
+    PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").strip()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = os.getenv("SESSION_COOKIE_SAMESITE", "Lax")

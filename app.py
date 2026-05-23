@@ -5,7 +5,7 @@ import secrets
 from urllib.parse import quote_plus
 
 import pandas as pd
-from flask import Flask, flash, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import Flask, current_app, flash, jsonify, redirect, render_template, request, send_file, session, url_for
 from sqlalchemy import inspect, or_, text
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -24,6 +24,7 @@ REVIEW_SOURCES = [
     "WhatsApp",
     "Walk-in",
     "Manual Entry",
+    "QR Feedback",
     "QR Feedback Form",
 ]
 ORDER_TYPES = ["Dine-in", "Takeaway", "Delivery"]
@@ -74,7 +75,7 @@ def seed_default_data() -> None:
         db.session.add(
             User(
                 username="admin",
-                full_name="SME Owner",
+                full_name="SME Consultant",
                 role=RoleService.ADMIN_ANALYST,
                 status="active",
                 password=generate_password_hash("admin123"),
@@ -83,7 +84,7 @@ def seed_default_data() -> None:
     else:
         if admin_user.role != RoleService.ADMIN_ANALYST:
             admin_user.role = RoleService.ADMIN_ANALYST
-        admin_user.full_name = "SME Owner"
+        admin_user.full_name = "SME Consultant"
         admin_user.status = "active"
         admin_user.password = generate_password_hash("admin123")
 
@@ -485,10 +486,44 @@ def determine_urgency_level(sentiment_label: str, rating: int, issue_tag: str, r
     return "low"
 
 
+def public_feedback_url(client_id: int) -> str:
+    configured_base = (current_app.config.get("PUBLIC_BASE_URL") or "").strip()
+    base_url = configured_base or request.host_url
+    return f"{base_url.rstrip('/')}{url_for('public_feedback', client_id=client_id)}"
+
+
+def external_qr_image_url(feedback_url: str) -> str:
+    return f"https://api.qrserver.com/v1/create-qr-code/?size=320x320&data={quote_plus(feedback_url)}"
+
+
 def feedback_qr_payload(client_id: int) -> dict:
-    feedback_url = url_for("public_feedback", client_id=client_id, _external=True)
-    qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=280x280&data={quote_plus(feedback_url)}"
-    return {"feedback_url": feedback_url, "qr_image_url": qr_image_url}
+    feedback_url = public_feedback_url(client_id)
+    return {
+        "feedback_url": feedback_url,
+        "qr_image_url": url_for("feedback_qr_image", client_id=client_id),
+        "qr_download_url": url_for("feedback_qr_download", client_id=client_id),
+        "qr_page_url": url_for("feedback_qr_page", client_id=client_id),
+        "external_qr_image_url": external_qr_image_url(feedback_url),
+    }
+
+
+def qr_png_response(client_id: int, *, as_attachment: bool = False):
+    feedback_url = public_feedback_url(client_id)
+    try:
+        import qrcode
+    except ImportError:
+        return redirect(external_qr_image_url(feedback_url))
+
+    image = qrcode.make(feedback_url)
+    stream = BytesIO()
+    image.save(stream, format="PNG")
+    stream.seek(0)
+    return send_file(
+        stream,
+        mimetype="image/png",
+        as_attachment=as_attachment,
+        download_name=f"feedback_qr_client_{client_id}.png",
+    )
 
 
 def request_value(key: str, default=None):
@@ -2711,7 +2746,7 @@ def register_routes(app: Flask) -> None:
             issue_tag_raw = clean_text(request.form.get("issue_tag"))
             issue_tag = issue_tag_raw if issue_tag_raw else detect_issue_tag(review_text)
             submission_channel = clean_text(request.form.get("submission_channel")) or "manual"
-            valid_submission_channels = {"manual", "qr"}
+            valid_submission_channels = {"manual", "qr", "QR"}
             errors = extract_route_errors(review_id_res, review_date_res, rating_res, client_id_res)
             if not review_text:
                 errors.append("Review text is required.")
@@ -2816,10 +2851,16 @@ def register_routes(app: Flask) -> None:
             review_text = clean_text(request.form.get("review_text"))
             rating_res = parse_int_field(request.form.get("rating_overall"), "Rating", required=True, min_value=1, max_value=5)
             errors = extract_route_errors(visit_date_res, rating_res)
+            visit_date = visit_date_res[0]
+            rating = rating_res[0]
             if not menu_item:
                 errors.append("Menu item is required.")
             if not review_text:
                 errors.append("Review text is required.")
+            elif len(review_text) > 1000:
+                errors.append("Review text must be 1000 characters or fewer.")
+            if visit_date and visit_date > date.today():
+                errors.append("Visit date cannot be in the future.")
             if not order_type:
                 errors.append("Order type is required.")
             elif order_type not in ORDER_TYPES:
@@ -2833,8 +2874,6 @@ def register_routes(app: Flask) -> None:
                     issue_tags=ISSUE_TAGS,
                     review_sources=REVIEW_SOURCES,
                 )
-            visit_date = visit_date_res[0]
-            rating = rating_res[0]
             if visit_date is None or rating is None:
                 flash("Please complete all required fields.", "danger")
                 return render_template(
@@ -2858,12 +2897,12 @@ def register_routes(app: Flask) -> None:
                     rating=rating,
                     review_text=review_text,
                     receipt_number=(request.form.get("receipt_number") or "").strip() or None,
-                    source="QR Feedback Form",
+                    source="QR Feedback",
                     sentiment_label=label,
                     sentiment_score=score,
                     issue_tag=issue_tag,
                     urgency_level=urgency_level,
-                    submission_channel="qr",
+                    submission_channel="QR",
                 )
             )
             db.session.commit()
@@ -2874,6 +2913,44 @@ def register_routes(app: Flask) -> None:
     def feedback_thank_you(client_id: int):
         client = User.query.filter_by(id=client_id, role=RoleService.CLIENT).first_or_404()
         return render_template("feedback_thank_you.html", client=client)
+
+    @app.route("/clients/<int:client_id>/feedback-qr")
+    def feedback_qr_page(client_id: int):
+        login_redirect = require_login_redirect()
+        if login_redirect:
+            return login_redirect
+        if not (staff_required() or session.get("user_id") == client_id):
+            flash("Unauthorized access to feedback QR.", "danger")
+            return redirect(url_for("dashboard"))
+        client = User.query.filter_by(id=client_id, role=RoleService.CLIENT).first_or_404()
+        return render_template(
+            "feedback_qr.html",
+            page="clients" if staff_required() else "reviews",
+            client=client,
+            qr_payload=feedback_qr_payload(client.id),
+        )
+
+    @app.route("/clients/<int:client_id>/feedback-qr.png")
+    def feedback_qr_image(client_id: int):
+        login_redirect = require_login_redirect()
+        if login_redirect:
+            return login_redirect
+        if not (staff_required() or session.get("user_id") == client_id):
+            flash("Unauthorized access to feedback QR.", "danger")
+            return redirect(url_for("dashboard"))
+        User.query.filter_by(id=client_id, role=RoleService.CLIENT).first_or_404()
+        return qr_png_response(client_id)
+
+    @app.route("/clients/<int:client_id>/feedback-qr/download")
+    def feedback_qr_download(client_id: int):
+        login_redirect = require_login_redirect()
+        if login_redirect:
+            return login_redirect
+        if not (staff_required() or session.get("user_id") == client_id):
+            flash("Unauthorized access to feedback QR.", "danger")
+            return redirect(url_for("dashboard"))
+        User.query.filter_by(id=client_id, role=RoleService.CLIENT).first_or_404()
+        return qr_png_response(client_id, as_attachment=True)
 
     @app.route("/reviews/submit", methods=["POST"])
     def review_submit():
@@ -2933,7 +3010,7 @@ def register_routes(app: Flask) -> None:
         if order_type and order_type not in ORDER_TYPES:
             return jsonify({"ok": False, "error": "order_type is invalid"}), 400
         submission_channel = clean_text(json_value("submission_channel", "qr")) or "qr"
-        if submission_channel not in {"manual", "qr"}:
+        if submission_channel not in {"manual", "qr", "QR"}:
             return jsonify({"ok": False, "error": "submission_channel is invalid"}), 400
         urgency_level = determine_urgency_level(label, rating, issue_tag, review_text)
         review = CustomerReview(
