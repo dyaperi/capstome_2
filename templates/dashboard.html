@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 {% set is_admin = session.get('role') == 'admin_analyst' %}
-<div class="page-header">
+<div class="page-header dashboard-header">
   <div>
     <p class="eyebrow">{{ 'Admin / Analyst' if is_admin else 'Client' }}</p>
     <h2>{{ 'Admin Dashboard' if is_admin else 'Business Dashboard' }}</h2>
@@ -11,13 +11,49 @@
   </div>
 </div>
 
-<div class="row g-3 mb-3">
-  <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Revenue</small><h5>RM {{ metrics.kpis.revenue }}</h5></div></div></div>
-  <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Cost</small><h5>RM {{ metrics.kpis.cost }}</h5></div></div></div>
-  <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Profit</small><h5>RM {{ metrics.kpis.profit }}</h5></div></div></div>
-  <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>ROI</small><h5>{{ metrics.kpis.roi }}%</h5></div></div></div>
-  <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Positive Sentiment</small><h5>{{ metrics.kpis.positive_sentiment }}%</h5></div></div></div>
-  <div class="col-md-2"><div class="card kpi"><div class="card-body"><small>Demand Window</small><h6>{{ metrics.peak_day or '-' }} / {{ metrics.low_day or '-' }}</h6></div></div></div>
+<div class="dashboard-kpi-grid">
+  <div class="kpi-card">
+    <span class="kpi-card__icon"><i class="bi bi-cash-stack"></i></span>
+    <div>
+      <strong>RM {{ metrics.kpis.revenue }}</strong>
+      <span>Revenue</span>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <span class="kpi-card__icon"><i class="bi bi-database"></i></span>
+    <div>
+      <strong>RM {{ metrics.kpis.cost }}</strong>
+      <span>Cost</span>
+    </div>
+  </div>
+  <div class="kpi-card kpi-card--profit">
+    <span class="kpi-card__icon"><i class="bi bi-graph-up-arrow"></i></span>
+    <div>
+      <strong>RM {{ metrics.kpis.profit }}</strong>
+      <span>Profit</span>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <span class="kpi-card__icon"><i class="bi bi-calculator"></i></span>
+    <div>
+      <strong>{{ metrics.kpis.roi }}%</strong>
+      <span>ROI</span>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <span class="kpi-card__icon"><i class="bi bi-emoji-smile"></i></span>
+    <div>
+      <strong>{{ metrics.kpis.positive_sentiment }}%</strong>
+      <span>Positive Sentiment</span>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <span class="kpi-card__icon"><i class="bi bi-calendar3"></i></span>
+    <div>
+      <strong>{{ metrics.peak_day or '-' }} / {{ metrics.low_day or '-' }}</strong>
+      <span>Demand Window</span>
+    </div>
+  </div>
 </div>
 
 <div class="row g-3 mb-3">
@@ -115,7 +151,7 @@
 {% endif %}
 
 <div class="row g-3">
-  <div class="col-md-6">
+  <div class="col-xl-6">
     <section class="section-card chart-card h-100">
       <div class="section-card__header">
         <div>
@@ -128,7 +164,7 @@
       </div>
     </section>
   </div>
-  <div class="col-md-6">
+  <div class="col-xl-6">
     <section class="section-card chart-card h-100">
       <div class="section-card__header">
         <div>
@@ -141,30 +177,57 @@
       </div>
     </section>
   </div>
-  <div class="col-md-6">
-    <div class="card h-100">
-      <div class="card-body">
-        <h6>Revenue by Channel</h6>
-        <div class="revenue-channel-layout">
-          <div class="revenue-channel-chart-container">
-            <canvas id="revenueByChannelChart"></canvas>
-          </div>
-          <div class="revenue-channel-list">
-            {% for row in metrics.revenue_by_channel %}
-            <div class="revenue-channel-list__item">
-              <span class="revenue-channel-list__name">{{ row.channel }}</span>
-              <strong>RM{{ '%.2f'|format(row.revenue) }}</strong>
-            </div>
-            {% else %}
-            <div class="empty-state">No channel revenue yet.</div>
-            {% endfor %}
-          </div>
+  <div class="col-xl-6">
+    <section class="section-card chart-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Revenue by Channel</h5>
+          <p>Recorded revenue grouped by sales channel.</p>
         </div>
       </div>
-    </div>
+      <div class="revenue-channel-layout">
+        <div class="revenue-channel-chart-container">
+          <canvas id="revenueByChannelChart"></canvas>
+        </div>
+        <div class="revenue-channel-list">
+          {% for row in metrics.revenue_by_channel %}
+          <div class="revenue-channel-list__item">
+            <span class="revenue-channel-list__name">{{ row.channel }}</span>
+            <strong>RM{{ '%.2f'|format(row.revenue) }}</strong>
+          </div>
+          {% else %}
+          <div class="empty-state">No channel revenue yet.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
   </div>
-  <div class="col-md-6"><div class="card"><div class="card-body"><h6>Sentiment Distribution</h6><canvas id="sentimentPie"></canvas></div></div></div>
-  <div class="col-md-6"><div class="card"><div class="card-body"><h6>Revenue vs Sentiment</h6><canvas id="sentimentSales"></canvas></div></div></div>
+  <div class="col-xl-6">
+    <section class="section-card chart-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Sentiment Distribution</h5>
+          <p>Share of positive, neutral, and negative customer reviews.</p>
+        </div>
+      </div>
+      <div class="sentiment-doughnut-wrap sentiment-doughnut-wrap--dashboard">
+        <canvas id="sentimentPie"></canvas>
+      </div>
+    </section>
+  </div>
+  <div class="col-12">
+    <section class="section-card chart-card">
+      <div class="section-card__header">
+        <div>
+          <h5>Revenue vs Sentiment</h5>
+          <p>Compare sentiment index with revenue movement using existing analytics data.</p>
+        </div>
+      </div>
+      <div class="sentiment-sales-chart-wrap">
+        <canvas id="sentimentSales"></canvas>
+      </div>
+    </section>
+  </div>
 </div>
 
 <script id="chart-data" type="application/json">{{ metrics|tojson }}</script>

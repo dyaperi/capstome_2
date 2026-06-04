@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header inventory-page-header">
+  <div>
+    <p class="eyebrow">Stock Setup</p>
+    <h2>{{ 'Edit Ingredient' if editing else 'Add Ingredient' }}</h2>
+    <p class="text-muted mb-0">Keep the setup practical: ingredient, unit, stock on hand, and reorder level.</p>
+  </div>
+  <div class="inventory-page-header__actions">
+    <a class="btn btn-outline-secondary" href="{{ url_for('inventory_page') }}">Back to Inventory</a>
+  </div>
+</div>
+
+<section class="section-card inventory-form-card">
+  <div class="section-card__header">
+    <div>
+      <h5>{{ 'Update inventory item' if editing else 'Add inventory item' }}</h5>
+      <p>Save the ingredient here, then return to the inventory overview automatically.</p>
+    </div>
+  </div>
+
+  <form method="post" class="entry-form" action="{{ url_for('inventory_edit', item_id=editing.id) if editing else url_for('inventory_add') }}">
+    <input type="hidden" name="inventory_item_id" value="{{ editing.id if editing else '' }}">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Ingredient name</label>
+        <input class="form-control" name="ingredient_name" value="{{ editing.ingredient_name if editing else '' }}" placeholder="e.g. Chicken breast" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Category</label>
+        <input class="form-control" name="category" value="{{ editing.category if editing else '' }}" placeholder="e.g. Protein" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Unit</label>
+        <select class="form-select" name="unit" required>
+          {% for unit in inventory_units %}
+          <option value="{{ unit }}" {% if editing and editing.unit == unit %}selected{% endif %}>{{ unit }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Current stock</label>
+        <input type="number" min="0" step="0.01" class="form-control" name="current_stock" value="{{ editing.current_stock if editing else 0 }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Minimum stock</label>
+        <input type="number" min="0" step="0.01" class="form-control" name="minimum_stock" value="{{ editing.minimum_stock if editing else 0 }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Cost / unit (RM)</label>
+        <input type="number" min="0" step="0.01" class="form-control" name="cost_per_unit" value="{{ editing.cost_per_unit if editing else 0 }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Supplier</label>
+        <input class="form-control" name="supplier_name" value="{{ editing.supplier_name if editing else '' }}" placeholder="Optional">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Status</label>
+        <select class="form-select" name="status">
+          <option value="active" {% if not editing or editing.status != 'inactive' %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if editing and editing.status == 'inactive' %}selected{% endif %}>Inactive</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary">{{ 'Update inventory item' if editing else 'Save inventory item' }}</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('inventory_page') }}">{{ 'Cancel edit' if editing else 'Back to Inventory' }}</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

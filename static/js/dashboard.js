@@ -591,9 +591,16 @@
     });
   }
 
+  const forecastRevenueLabels = data.forecast_revenue_labels || data.forecast_labels || [];
+  const forecastRevenueValues = (data.forecast_revenue || []).map((value) => Number(value) || 0);
+  if (document.getElementById('forecastRevenue')) {
+    console.debug('[forecast debug] revenue labels received:', forecastRevenueLabels);
+    console.debug('[forecast debug] revenue values received:', forecastRevenueValues);
+  }
+
   mkLine('revenueChart', data.revenue_labels || [], data.revenue_values || [], 'Revenue', '#0d6efd');
   mkLine('cashChart', data.revenue_labels || [], data.cash_values || [], 'Cash Flow', '#198754');
-  mkLine('forecastRevenue', data.forecast_labels || [], data.forecast_revenue || [], 'Forecast Revenue', '#6f42c1');
+  mkLine('forecastRevenue', forecastRevenueLabels, forecastRevenueValues, 'Forecast Revenue', '#6f42c1');
   mkLine('forecastCash', data.forecast_labels || [], data.forecast_cash || [], 'Forecast Cash Flow', '#fd7e14');
 
   const channelEl = document.getElementById('revenueByChannelChart');
@@ -721,12 +728,118 @@
       data: {
         labels: data.sentiment_vs_sales_labels || [],
         datasets: [
-          { label: 'Revenue', data: data.sentiment_vs_sales_revenue || [], borderColor: '#0d6efd', yAxisID: 'y' },
-          { label: 'Sentiment Index', data: data.sentiment_vs_sales_sentiment || [], borderColor: '#dc3545', yAxisID: 'y1' }
+          {
+            label: 'Revenue',
+            data: data.sentiment_vs_sales_revenue || [],
+            borderColor: '#0d6efd',
+            backgroundColor: '#0d6efd',
+            yAxisID: 'y',
+            tension: 0.32,
+            borderWidth: 3,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            pointBorderWidth: 2,
+            pointBackgroundColor: '#ffffff',
+            pointBorderColor: '#0d6efd'
+          },
+          {
+            label: 'Sentiment Index',
+            data: data.sentiment_vs_sales_sentiment || [],
+            borderColor: '#dc3545',
+            backgroundColor: '#dc3545',
+            yAxisID: 'y1',
+            tension: 0.32,
+            borderWidth: 3,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            pointBorderWidth: 2,
+            pointBackgroundColor: '#ffffff',
+            pointBorderColor: '#dc3545'
+          }
         ]
       },
       options: {
-        scales: { y: { type: 'linear', position: 'left' }, y1: { type: 'linear', position: 'right' } }
+        responsive: true,
+        maintainAspectRatio: false,
+        devicePixelRatio: window.devicePixelRatio || 1,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: {
+              boxWidth: 10,
+              boxHeight: 10,
+              usePointStyle: true,
+              padding: 18,
+              color: '#334155',
+              font: { weight: '700' }
+            }
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            backgroundColor: '#0f172a',
+            titleColor: '#f8fafc',
+            bodyColor: '#e2e8f0',
+            borderColor: 'rgba(148, 163, 184, .35)',
+            borderWidth: 1,
+            callbacks: {
+              label: (ctx) => {
+                const value = Number(ctx.raw || 0);
+                if (ctx.dataset.yAxisID === 'y1') {
+                  return `Sentiment Index: ${value.toFixed(3)}`;
+                }
+                return `Revenue: ${money.format(value)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              color: '#64748b',
+              maxRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: 8
+            }
+          },
+          y: {
+            type: 'linear',
+            position: 'left',
+            beginAtZero: true,
+            grid: { color: 'rgba(148, 163, 184, .22)' },
+            ticks: {
+              color: '#64748b',
+              callback: (value) => money.format(Number(value))
+            },
+            title: {
+              display: true,
+              text: 'Revenue (RM)',
+              color: '#475569',
+              font: { weight: '700' }
+            }
+          },
+          y1: {
+            type: 'linear',
+            position: 'right',
+            grid: { drawOnChartArea: false },
+            ticks: {
+              color: '#64748b',
+              callback: (value) => Number(value).toFixed(2)
+            },
+            title: {
+              display: true,
+              text: 'Sentiment Index',
+              color: '#475569',
+              font: { weight: '700' }
+            }
+          }
+        }
       }
     });
   }

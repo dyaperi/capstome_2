@@ -9,8 +9,8 @@
   </div>
   <div class="inventory-page-header__actions">
     <a class="btn btn-outline-secondary" href="{{ url_for('inventory_page') }}">Overview</a>
-    <a class="btn btn-outline-primary" href="{{ url_for('inventory_page', import=1) }}">Import Excel</a>
-    <a class="btn btn-primary" href="{{ url_for('inventory_page', compose=1) }}">Add Ingredient</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('inventory_import') }}">Import Excel</a>
+    <a class="btn btn-primary" href="{{ url_for('inventory_add') }}">Add Ingredient</a>
   </div>
 </div>
 
@@ -71,8 +71,8 @@
       <p>Use the filters below, then open an item to review or record stock movement.</p>
     </div>
     <div class="inventory-stock-board__tools">
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('inventory_page', compose=1) }}">Add Item</a>
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('inventory_page', import=1) }}">Import Excel</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('inventory_add') }}">Add Item</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('inventory_import') }}">Import Excel</a>
       <a class="btn btn-outline-primary btn-sm" href="{{ url_for('export_inventory_items_excel', mode='active', status=inventory_filters.status, q=inventory_filters.q, category=inventory_filters.category) }}">Export Active</a>
       <a class="btn btn-outline-primary btn-sm" href="{{ url_for('export_stock_movements_excel') }}">Export Movements</a>
       {% if inventory_filters.has_filters %}
@@ -160,7 +160,7 @@
       <div class="inventory-stock-row__actions">
         <a class="btn btn-sm btn-outline-success" href="{{ url_for('inventory_movement', item_id=item.id) }}">Update Stock</a>
         <a class="btn btn-sm btn-outline-primary" href="{{ url_for('inventory_detail', item_id=item.id) }}">View</a>
-        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('inventory_page', edit=item.id) }}">Edit</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('inventory_edit', item_id=item.id) }}">Edit</a>
         <form method="post" action="{{ url_for('inventory_status', item_id=item.id) }}" onsubmit="return confirm('Deactivate this inventory item? It will move to the inactive list.');">
           <input type="hidden" name="status" value="inactive">
           <button class="btn btn-sm btn-outline-warning" type="submit">Deactivate</button>
@@ -349,91 +349,6 @@
     </section>
   </div>
 </div>
-
-{% if show_import %}
-<section class="section-card import-panel inventory-import-panel mb-4">
-  <div class="section-card__header">
-    <div>
-      <h5>Optional Excel import</h5>
-      <p>Bulk upload inventory items with the fixed template format. Manual entry remains available for day-to-day updates.</p>
-    </div>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('inventory_page') }}">Close Import</a>
-  </div>
-  <form method="post" enctype="multipart/form-data" action="{{ url_for('import_excel', module_key='inventory_items') }}" class="import-form inventory-import-form">
-    <div>
-      <strong>Template columns</strong>
-      <p>{{ import_specs.inventory_items.columns|join(', ') }}</p>
-    </div>
-    <input class="form-control" type="file" name="excel_file" accept=".xlsx,.xls" required>
-    <button class="btn btn-outline-primary">Import Excel</button>
-  </form>
-</section>
-{% endif %}
-
-{% if show_form %}
-<section class="section-card inventory-form-card">
-  <div class="section-card__header">
-    <div>
-      <h5>{{ 'Update inventory item' if editing else 'Add inventory item' }}</h5>
-      <p>Keep the setup practical: ingredient, unit, stock on hand, and reorder level.</p>
-    </div>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('inventory_page') }}">Close Form</a>
-  </div>
-
-  <form method="post" class="entry-form">
-    <input type="hidden" name="inventory_item_id" value="{{ editing.id if editing else '' }}">
-    <div class="row g-3">
-      <div class="col-md-3">
-        <label class="form-label">Ingredient name</label>
-        <input class="form-control" name="ingredient_name" value="{{ editing.ingredient_name if editing else '' }}" placeholder="e.g. Chicken breast" required>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Category</label>
-        <input class="form-control" name="category" value="{{ editing.category if editing else '' }}" placeholder="e.g. Protein" required>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Unit</label>
-        <select class="form-select" name="unit" required>
-          {% for unit in inventory_units %}
-          <option value="{{ unit }}" {% if editing and editing.unit==unit %}selected{% endif %}>{{ unit }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Current stock</label>
-        <input type="number" min="0" step="0.01" class="form-control" name="current_stock" value="{{ editing.current_stock if editing else 0 }}" required>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Minimum stock</label>
-        <input type="number" min="0" step="0.01" class="form-control" name="minimum_stock" value="{{ editing.minimum_stock if editing else 0 }}" required>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Cost / unit (RM)</label>
-        <input type="number" min="0" step="0.01" class="form-control" name="cost_per_unit" value="{{ editing.cost_per_unit if editing else 0 }}">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Supplier</label>
-        <input class="form-control" name="supplier_name" value="{{ editing.supplier_name if editing else '' }}" placeholder="Optional">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Status</label>
-        <select class="form-select" name="status">
-          <option value="active" {% if not editing or editing.status!='inactive' %}selected{% endif %}>Active</option>
-          <option value="inactive" {% if editing and editing.status=='inactive' %}selected{% endif %}>Inactive</option>
-        </select>
-      </div>
-    </div>
-    <div class="form-actions">
-      <button class="btn btn-primary">{{ 'Update inventory item' if editing else 'Save inventory item' }}</button>
-      {% if editing %}
-      <a class="btn btn-outline-secondary" href="{{ url_for('inventory_page') }}">Cancel edit</a>
-      {% else %}
-      <a class="btn btn-outline-secondary" href="{{ url_for('inventory_page') }}">Close form</a>
-      {% endif %}
-    </div>
-  </form>
-</section>
-{% endif %}
 
 {% if category_distribution %}
 <script id="inventory-chart-data" type="application/json">{{ category_distribution|tojson }}</script>

@@ -6,7 +6,7 @@ from urllib.parse import quote_plus
 
 import pandas as pd
 from flask import Flask, current_app, flash, jsonify, redirect, render_template, request, send_file, session, url_for
-from sqlalchemy import inspect, or_, text
+from sqlalchemy import distinct, func, inspect, or_, text
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from analytics import analyze_sentiment, campaign_roi, forecast_values
@@ -989,9 +989,9 @@ IMPORT_SPECS = {
     "inventory_items": {
         "label": "Inventory items",
         "redirect": "inventory_page",
+        "error_redirect": "inventory_import",
         "required": ["ingredient_name", "category", "unit", "current_stock", "minimum_stock", "cost_per_unit", "status"],
         "optional": ["supplier_name"],
-        "redirect_query": {"import": 1},
     },
 }
 
@@ -1068,6 +1068,8 @@ def read_import_rows(upload, spec: dict):
 
 
 def import_redirect_response(spec: dict, *, keep_panel_open: bool = False):
+    if keep_panel_open and spec.get("error_redirect"):
+        return redirect(url_for(spec["error_redirect"]))
     redirect_query = dict(spec.get("redirect_query") or {})
     if not keep_panel_open:
         redirect_query = {}
@@ -1530,6 +1532,215 @@ def compute_dashboard_metrics(client_id: int | None = None) -> dict:
         "low_day": low_day.strftime("%Y-%m-%d") if low_day else None,
         "monthly_revenue_trend": monthly_revenue_trend,
         "monthly_sales_roi_graph": monthly_sales_roi_graph,
+    }
+
+
+def generate_revenue_forecast_if_needed(client_id: int) -> dict:
+    if client_id is None:
+        print("[forecast debug] selected client_id: None", flush=True)
+        return {
+            "generated": False,
+            "message": "Choose a client portfolio before viewing revenue forecasts.",
+            "avg_daily_revenue": 0,
+            "rows_created": 0,
+        }
+
+    total_revenue, active_sale_days = (
+        db.session.query(
+            func.coalesce(func.sum(Sale.quantity * Sale.unit_price), 0),
+            func.count(distinct(Sale.sale_date)),
+        )
+        .filter(Sale.client_id == client_id)
+        .one()
+    )
+
+    total_revenue = float(total_revenue or 0)
+    active_sale_days = int(active_sale_days or 0)
+
+    ForecastResult.query.filter(
+        ForecastResult.client_id == client_id,
+        ForecastResult.metric == "revenue",
+    ).delete(synchronize_session=False)
+
+    if active_sale_days <= 0:
+        db.session.commit()
+        print(f"[forecast debug] selected client_id: {client_id}", flush=True)
+        print("[forecast debug] no sales rows found for revenue forecast generation", flush=True)
+        print("[forecast debug] revenue forecast rows generated: 0", flush=True)
+        return {
+            "generated": False,
+            "message": "No sales data yet. Add sales records to generate the next 14 days of revenue forecasts.",
+            "avg_daily_revenue": 0,
+            "rows_created": 0,
+        }
+
+    avg_daily_revenue = round(total_revenue / active_sale_days, 2)
+    today = date.today()
+    forecast_rows = [
+        ForecastResult(
+            client_id=client_id,
+            forecast_date=today + timedelta(days=day_offset),
+            metric="revenue",
+            value=avg_daily_revenue,
+        )
+        for day_offset in range(1, 15)
+    ]
+    db.session.add_all(forecast_rows)
+    db.session.commit()
+
+    print(f"[forecast debug] selected client_id: {client_id}", flush=True)
+    print(f"[forecast debug] total sales revenue used: {round(total_revenue, 2)}", flush=True)
+    print(f"[forecast debug] active sale days used: {active_sale_days}", flush=True)
+    print(f"[forecast debug] avg daily revenue generated: {avg_daily_revenue}", flush=True)
+    print(f"[forecast debug] revenue forecast rows generated: {len(forecast_rows)}", flush=True)
+
+    return {
+        "generated": True,
+        "message": "",
+        "avg_daily_revenue": avg_daily_revenue,
+        "rows_created": len(forecast_rows),
+    }
+
+
+def build_forecast_revenue_chart_data(client_id: int) -> dict:
+    revenue_rows = (
+        ForecastResult.query.filter(
+            ForecastResult.client_id == client_id,
+            ForecastResult.metric == "revenue",
+        )
+        .order_by(ForecastResult.forecast_date.asc())
+        .all()
+    )
+    labels = [row.forecast_date.strftime("%Y-%m-%d") for row in revenue_rows]
+    values = [round(float(row.value or 0), 2) for row in revenue_rows]
+
+    print(f"[forecast debug] selected client_id: {client_id}", flush=True)
+    print(f"[forecast debug] revenue forecast rows found: {len(revenue_rows)}", flush=True)
+    print(f"[forecast debug] revenue forecast values sent to chart: {values}", flush=True)
+
+    return {
+        "forecast_labels": labels,
+        "forecast_revenue_labels": labels,
+        "forecast_revenue": values,
+    }
+
+
+def parse_inventory_form_submission():
+    item_id_raw = clean_text(request.form.get("inventory_item_id"))
+    item_id_res = parse_int_field(item_id_raw, "Inventory item ID")
+    ingredient_name = clean_text(request.form.get("ingredient_name"))
+    category = clean_text(request.form.get("category"))
+    unit = clean_text(request.form.get("unit"))
+    current_stock_res = parse_float_field(request.form.get("current_stock"), "Current stock", required=True, min_value=0)
+    minimum_stock_res = parse_float_field(request.form.get("minimum_stock"), "Minimum stock", required=True, min_value=0)
+    cost_per_unit_res = parse_float_field(request.form.get("cost_per_unit"), "Cost per unit", min_value=0)
+    supplier_name = clean_text(request.form.get("supplier_name")) or None
+    status = clean_text(request.form.get("status")) or "active"
+    owner = client_owner_payload_from_form()
+    errors = extract_route_errors(item_id_res, current_stock_res, minimum_stock_res, cost_per_unit_res)
+    if not ingredient_name:
+        errors.append("Ingredient name is required.")
+    if not category:
+        errors.append("Category is required.")
+    if unit not in INVENTORY_UNITS:
+        errors.append("Choose a valid stock unit.")
+    if status not in {"active", "inactive"}:
+        errors.append("Status must be active or inactive.")
+    if staff_required() and not owner.get("client_id"):
+        errors.append("Select a client for this inventory item.")
+    if owner.get("client_id") and not User.query.filter_by(id=owner["client_id"], role=RoleService.CLIENT).first():
+        errors.append("Selected client is invalid.")
+    payload = {
+        "ingredient_name": ingredient_name,
+        "category": category,
+        "unit": unit,
+        "current_stock": current_stock_res[0],
+        "minimum_stock": minimum_stock_res[0],
+        "cost_per_unit": cost_per_unit_res[0] or 0,
+        "supplier_name": supplier_name,
+        "status": status,
+        **owner,
+    }
+    return item_id_raw, item_id_res, payload, errors
+
+
+def build_inventory_page_context() -> dict:
+    status_filter = clean_text(request.args.get("status")) or "all"
+    if status_filter not in {"all", "in_stock", "low_stock", "out_of_stock"}:
+        status_filter = "all"
+    search_term = clean_text(request.args.get("q"))
+    category_filter = clean_text(request.args.get("category"))
+    page_number = max(request.args.get("page", type=int) or 1, 1)
+    per_page = 4
+    items_query = scoped_query(InventoryItem).filter(or_(InventoryItem.status == "active", InventoryItem.status.is_(None)))
+    inactive_items_query = scoped_query(InventoryItem).filter(InventoryItem.status == "inactive")
+    if search_term:
+        items_query = items_query.filter(
+            or_(
+                InventoryItem.ingredient_name.ilike(f"%{search_term}%"),
+                InventoryItem.category.ilike(f"%{search_term}%"),
+            )
+        )
+        inactive_items_query = inactive_items_query.filter(
+            or_(
+                InventoryItem.ingredient_name.ilike(f"%{search_term}%"),
+                InventoryItem.category.ilike(f"%{search_term}%"),
+            )
+        )
+    if category_filter:
+        items_query = items_query.filter(InventoryItem.category == category_filter)
+        inactive_items_query = inactive_items_query.filter(InventoryItem.category == category_filter)
+    if status_filter == "in_stock":
+        items_query = items_query.filter(InventoryItem.current_stock > InventoryItem.minimum_stock)
+    elif status_filter == "low_stock":
+        items_query = items_query.filter(InventoryItem.current_stock > 0, InventoryItem.current_stock <= InventoryItem.minimum_stock)
+    elif status_filter == "out_of_stock":
+        items_query = items_query.filter(InventoryItem.current_stock <= 0)
+
+    filtered_items = items_query.order_by(InventoryItem.ingredient_name.asc()).all()
+    filtered_total = len(filtered_items)
+    total_pages = ((filtered_total - 1) // per_page) + 1 if filtered_total else 1
+    page_number = min(page_number, total_pages)
+    start_idx = (page_number - 1) * per_page
+    end_idx = start_idx + per_page
+    items = filtered_items[start_idx:end_idx]
+    inactive_items = inactive_items_query.order_by(InventoryItem.ingredient_name.asc()).all()
+    category_rows = (
+        scoped_query(InventoryItem)
+        .with_entities(InventoryItem.category)
+        .distinct()
+        .order_by(InventoryItem.category.asc())
+        .all()
+    )
+    category_options = [row[0] for row in category_rows if row[0]]
+    summary = inventory_summary(current_client_id())
+    recent_activity = inventory_recent_activity(current_client_id())
+    category_distribution = [
+        {"label": label, "value": value}
+        for label, value in sorted(summary["category_counts"].items(), key=lambda item: (-item[1], item[0]))
+    ]
+    return {
+        "items": items,
+        "inactive_items": inactive_items,
+        "inventory_summary": summary,
+        "recent_activity": recent_activity,
+        "category_distribution": category_distribution,
+        "category_options": category_options,
+        "inventory_filters": {
+            "status": status_filter,
+            "q": search_term,
+            "category": category_filter,
+            "has_filters": bool(search_term or category_filter or status_filter != "all"),
+            "filtered_count": filtered_total,
+        },
+        "inventory_pagination": {
+            "page": page_number,
+            "per_page": per_page,
+            "total": filtered_total,
+            "total_pages": total_pages,
+            "showing_from": start_idx + 1 if filtered_total else 0,
+            "showing_to": min(end_idx, filtered_total),
+        },
     }
 
 
@@ -2042,158 +2253,81 @@ def register_routes(app: Flask) -> None:
         flash("Menu item deleted.", "success")
         return redirect(url_for("menu_engineering"))
 
-    @app.route("/inventory", methods=["GET", "POST"])
+    @app.route("/inventory")
     def inventory_page():
         context_redirect = require_client_context_redirect()
         if context_redirect:
             return context_redirect
-        edit_id = request.args.get("edit", type=int)
-        show_form = bool(edit_id or request.args.get("compose") == "1")
-        show_import = request.args.get("import") == "1"
-        editing = get_scoped_or_404(InventoryItem, edit_id) if edit_id else None
-        clients = User.query.filter_by(role=RoleService.CLIENT).order_by(User.full_name.asc()).all() if staff_required() else []
-
-        if request.method == "POST":
-            item_id_raw = clean_text(request.form.get("inventory_item_id"))
-            item_id_res = parse_int_field(item_id_raw, "Inventory item ID")
-            ingredient_name = clean_text(request.form.get("ingredient_name"))
-            category = clean_text(request.form.get("category"))
-            unit = clean_text(request.form.get("unit"))
-            current_stock_res = parse_float_field(request.form.get("current_stock"), "Current stock", required=True, min_value=0)
-            minimum_stock_res = parse_float_field(request.form.get("minimum_stock"), "Minimum stock", required=True, min_value=0)
-            cost_per_unit_res = parse_float_field(request.form.get("cost_per_unit"), "Cost per unit", min_value=0)
-            supplier_name = clean_text(request.form.get("supplier_name")) or None
-            status = clean_text(request.form.get("status")) or "active"
-            owner = client_owner_payload_from_form()
-            errors = extract_route_errors(item_id_res, current_stock_res, minimum_stock_res, cost_per_unit_res)
-            if not ingredient_name:
-                errors.append("Ingredient name is required.")
-            if not category:
-                errors.append("Category is required.")
-            if unit not in INVENTORY_UNITS:
-                errors.append("Choose a valid stock unit.")
-            if status not in {"active", "inactive"}:
-                errors.append("Status must be active or inactive.")
-            if staff_required() and not owner.get("client_id"):
-                errors.append("Select a client for this inventory item.")
-            if owner.get("client_id") and not User.query.filter_by(id=owner["client_id"], role=RoleService.CLIENT).first():
-                errors.append("Selected client is invalid.")
-            if errors:
-                flash(" ".join(errors), "danger")
-                if item_id_raw:
-                    return redirect(url_for("inventory_page", edit=item_id_res[0]))
-                return redirect(url_for("inventory_page", compose=1))
-
-            payload = {
-                "ingredient_name": ingredient_name,
-                "category": category,
-                "unit": unit,
-                "current_stock": current_stock_res[0],
-                "minimum_stock": minimum_stock_res[0],
-                "cost_per_unit": cost_per_unit_res[0] or 0,
-                "supplier_name": supplier_name,
-                "status": status,
-                **owner,
-            }
-            if item_id_raw:
-                item = get_scoped_or_404(InventoryItem, item_id_res[0])
-                for key, value in payload.items():
-                    setattr(item, key, value)
-                flash("Inventory item updated.", "success")
-            else:
-                db.session.add(InventoryItem(**payload))
-                flash("Inventory item added.", "success")
-            db.session.commit()
-            return redirect(url_for("inventory_page"))
-
-        status_filter = clean_text(request.args.get("status")) or "all"
-        if status_filter not in {"all", "in_stock", "low_stock", "out_of_stock"}:
-            status_filter = "all"
-        search_term = clean_text(request.args.get("q"))
-        category_filter = clean_text(request.args.get("category"))
-        page_number = max(request.args.get("page", type=int) or 1, 1)
-        per_page = 4
-        items_query = scoped_query(InventoryItem).filter(or_(InventoryItem.status == "active", InventoryItem.status.is_(None)))
-        inactive_items_query = scoped_query(InventoryItem).filter(InventoryItem.status == "inactive")
-        if search_term:
-            items_query = items_query.filter(
-                or_(
-                    InventoryItem.ingredient_name.ilike(f"%{search_term}%"),
-                    InventoryItem.category.ilike(f"%{search_term}%"),
-                )
-            )
-            inactive_items_query = inactive_items_query.filter(
-                or_(
-                    InventoryItem.ingredient_name.ilike(f"%{search_term}%"),
-                    InventoryItem.category.ilike(f"%{search_term}%"),
-                )
-            )
-        if category_filter:
-            items_query = items_query.filter(InventoryItem.category == category_filter)
-            inactive_items_query = inactive_items_query.filter(InventoryItem.category == category_filter)
-        if status_filter == "in_stock":
-            items_query = items_query.filter(InventoryItem.current_stock > InventoryItem.minimum_stock)
-        elif status_filter == "low_stock":
-            items_query = items_query.filter(InventoryItem.current_stock > 0, InventoryItem.current_stock <= InventoryItem.minimum_stock)
-        elif status_filter == "out_of_stock":
-            items_query = items_query.filter(InventoryItem.current_stock <= 0)
-
-        filtered_items = items_query.order_by(InventoryItem.ingredient_name.asc()).all()
-        filtered_total = len(filtered_items)
-        total_pages = ((filtered_total - 1) // per_page) + 1 if filtered_total else 1
-        page_number = min(page_number, total_pages)
-        start_idx = (page_number - 1) * per_page
-        end_idx = start_idx + per_page
-        items = filtered_items[start_idx:end_idx]
-        inactive_items = inactive_items_query.order_by(InventoryItem.ingredient_name.asc()).all()
-        category_rows = (
-            scoped_query(InventoryItem)
-            .with_entities(InventoryItem.category)
-            .distinct()
-            .order_by(InventoryItem.category.asc())
-            .all()
-        )
-        category_options = [row[0] for row in category_rows if row[0]]
-        summary = inventory_summary(current_client_id())
-        recent_activity = inventory_recent_activity(current_client_id())
-        category_distribution = [
-            {"label": label, "value": value}
-            for label, value in sorted(summary["category_counts"].items(), key=lambda item: (-item[1], item[0]))
-        ]
+        page_context = build_inventory_page_context()
         return render_template(
             "inventory.html",
             page="inventory",
-            items=items,
-            inactive_items=inactive_items,
-            editing=editing,
-            show_form=show_form,
-            show_import=show_import,
-            clients=clients,
-            inventory_units=INVENTORY_UNITS,
-            inventory_summary=summary,
             stock_label=inventory_stock_label,
             stock_badge_class=inventory_stock_badge_class,
             stock_progress=inventory_stock_progress,
             total_value=inventory_total_value,
-            recent_activity=recent_activity,
             activity_time_label=inventory_activity_time_label,
-            category_distribution=category_distribution,
-            category_options=category_options,
-            inventory_filters={
-                "status": status_filter,
-                "q": search_term,
-                "category": category_filter,
-                "has_filters": bool(search_term or category_filter or status_filter != "all"),
-                "filtered_count": filtered_total,
-            },
-            inventory_pagination={
-                "page": page_number,
-                "per_page": per_page,
-                "total": filtered_total,
-                "total_pages": total_pages,
-                "showing_from": start_idx + 1 if filtered_total else 0,
-                "showing_to": min(end_idx, filtered_total),
-            },
+            **page_context,
+        )
+
+    @app.route("/inventory/add", methods=["GET", "POST"])
+    def inventory_add():
+        context_redirect = require_client_context_redirect()
+        if context_redirect:
+            return context_redirect
+        if request.method == "POST":
+            item_id_raw, _, payload, errors = parse_inventory_form_submission()
+            if errors:
+                flash(" ".join(errors), "danger")
+                return redirect(url_for("inventory_add"))
+            if item_id_raw:
+                flash("New inventory items cannot include an existing item ID.", "danger")
+                return redirect(url_for("inventory_add"))
+            db.session.add(InventoryItem(**payload))
+            db.session.commit()
+            flash("Inventory item added.", "success")
+            return redirect(url_for("inventory_page"))
+        return render_template(
+            "inventory_add.html",
+            page="inventory",
+            editing=None,
+            inventory_units=INVENTORY_UNITS,
+        )
+
+    @app.route("/inventory/<int:item_id>/edit", methods=["GET", "POST"])
+    def inventory_edit(item_id: int):
+        context_redirect = require_client_context_redirect()
+        if context_redirect:
+            return context_redirect
+        item = get_scoped_or_404(InventoryItem, item_id)
+        if request.method == "POST":
+            item_id_raw, item_id_res, payload, errors = parse_inventory_form_submission()
+            if item_id_raw and item_id_res[0] != item.id:
+                errors.append("Inventory item ID does not match the item being edited.")
+            if errors:
+                flash(" ".join(errors), "danger")
+                return redirect(url_for("inventory_edit", item_id=item.id))
+            for key, value in payload.items():
+                setattr(item, key, value)
+            db.session.commit()
+            flash("Inventory item updated.", "success")
+            return redirect(url_for("inventory_page"))
+        return render_template(
+            "inventory_add.html",
+            page="inventory",
+            editing=item,
+            inventory_units=INVENTORY_UNITS,
+        )
+
+    @app.route("/inventory/import")
+    def inventory_import():
+        context_redirect = require_client_context_redirect()
+        if context_redirect:
+            return context_redirect
+        return render_template(
+            "inventory_import.html",
+            page="inventory",
+            import_specs=import_specs_for_template(),
         )
 
     @app.route("/inventory/delete/<int:item_id>", methods=["POST"])
@@ -3085,7 +3219,12 @@ def register_routes(app: Flask) -> None:
         if not staff_required():
             flash("Admin / Analyst access required.", "warning")
             return redirect(url_for("dashboard"))
-        metrics = compute_dashboard_metrics(current_client_id())
+        client_id = current_client_id()
+        forecast_generation = generate_revenue_forecast_if_needed(client_id)
+        if not forecast_generation["generated"]:
+            flash(forecast_generation["message"], "info")
+        metrics = compute_dashboard_metrics(client_id)
+        metrics.update(build_forecast_revenue_chart_data(client_id))
         return render_template("forecast.html", page="forecast", metrics=metrics)
 
     @app.route("/roi")

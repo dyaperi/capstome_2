@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header inventory-page-header">
+  <div>
+    <p class="eyebrow">Bulk Import</p>
+    <h2>Import Inventory from Excel</h2>
+    <p class="text-muted mb-0">Upload inventory items with the fixed template format, then return to the inventory overview.</p>
+  </div>
+  <div class="inventory-page-header__actions">
+    <a class="btn btn-outline-secondary" href="{{ url_for('inventory_page') }}">Back to Inventory</a>
+  </div>
+</div>
+
+<section class="section-card import-panel inventory-import-panel">
+  <div class="section-card__header">
+    <div>
+      <h5>Optional Excel import</h5>
+      <p>Bulk upload inventory items with the fixed template format. Manual entry remains available for day-to-day updates.</p>
+    </div>
+  </div>
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('import_excel', module_key='inventory_items') }}" class="import-form inventory-import-form">
+    <div>
+      <strong>Template columns</strong>
+      <p>{{ import_specs.inventory_items.columns|join(', ') }}</p>
+    </div>
+    <input class="form-control" type="file" name="excel_file" accept=".xlsx,.xls" required>
+    <button class="btn btn-outline-primary">Import Excel</button>
+  </form>
+</section>
+{% endblock %}
