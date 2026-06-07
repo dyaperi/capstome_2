@@ -23,8 +23,14 @@ CREATE TABLE users (
   full_name VARCHAR(150) NOT NULL,
   role VARCHAR(30) NOT NULL DEFAULT 'client',
   status VARCHAR(20) NOT NULL DEFAULT 'active',
+  phone_number VARCHAR(30) NULL,
+  business_address VARCHAR(255) NULL,
+  business_type VARCHAR(100) NULL,
+  subscription_type VARCHAR(80) NULL,
+  preferred_dashboard_period VARCHAR(30) DEFAULT 'month',
   last_login_at DATETIME NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO users (username, password, full_name, role, status) VALUES

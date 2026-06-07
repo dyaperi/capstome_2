@@ -11,8 +11,14 @@ class User(db.Model):
     full_name = db.Column(db.String(150), nullable=False)
     role = db.Column(db.String(30), default="client", nullable=False)
     status = db.Column(db.String(20), default="active", nullable=False)
+    phone_number = db.Column(db.String(30))
+    business_address = db.Column(db.String(255))
+    business_type = db.Column(db.String(100))
+    subscription_type = db.Column(db.String(80))
+    preferred_dashboard_period = db.Column(db.String(30), default="month")
     last_login_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class MenuItem(db.Model):

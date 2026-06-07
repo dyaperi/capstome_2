@@ -324,6 +324,18 @@ def ensure_schema_updates() -> None:
         db.session.execute(text("UPDATE users SET status = 'active' WHERE status IS NULL OR status = ''"))
     if "last_login_at" not in user_columns:
         db.session.execute(text("ALTER TABLE users ADD COLUMN last_login_at DATETIME NULL"))
+    if "phone_number" not in user_columns:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN phone_number VARCHAR(30)"))
+    if "business_address" not in user_columns:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN business_address VARCHAR(255)"))
+    if "business_type" not in user_columns:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN business_type VARCHAR(100)"))
+    if "subscription_type" not in user_columns:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN subscription_type VARCHAR(80)"))
+    if "preferred_dashboard_period" not in user_columns:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN preferred_dashboard_period VARCHAR(30) DEFAULT 'month'"))
+    if "updated_at" not in user_columns:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
     for table_name in ["menu_items", "sales", "expenses", "marketing_campaigns", "inventory_items", "forecast_results"]:
         table_columns = {col["name"]: col for col in inspector.get_columns(table_name)}
         if "client_id" not in table_columns:
@@ -1914,6 +1926,89 @@ def register_routes(app: Flask) -> None:
     def logout():
         session.clear()
         return redirect(url_for("login"))
+
+    @app.route("/settings", methods=["GET", "POST"])
+    def settings_page():
+        login_redirect = require_login_redirect()
+        if login_redirect:
+            return login_redirect
+
+        user = db.session.get(User, session["user_id"])
+        if not user:
+            session.clear()
+            flash("Please log in again.", "warning")
+            return redirect(url_for("login"))
+        is_client_account = (user.role or RoleService.CLIENT) == RoleService.CLIENT
+        dashboard_periods = {
+            "week": "Last 7 days",
+            "month": "This month",
+            "quarter": "This quarter",
+            "year": "This year",
+        }
+
+        if request.method == "POST":
+            form_name = clean_text(request.form.get("form_name"))
+            if form_name == "account":
+                full_name = clean_text(request.form.get("full_name"))
+                username = clean_text(request.form.get("username"))
+                phone_number = clean_text(request.form.get("phone_number")) or None
+                preferred_period = clean_text(request.form.get("preferred_dashboard_period")) or "month"
+                errors = []
+                if not full_name:
+                    errors.append("Name is required.")
+                if not username:
+                    errors.append("Username or email is required.")
+                if preferred_period not in dashboard_periods:
+                    errors.append("Choose a valid dashboard period.")
+                existing_user = User.query.filter(User.username == username, User.id != user.id).first() if username else None
+                if existing_user:
+                    errors.append("That username or email is already in use.")
+                if errors:
+                    flash(" ".join(errors), "danger")
+                    return redirect(url_for("settings_page"))
+
+                user.full_name = full_name
+                user.username = username
+                user.phone_number = phone_number
+                user.preferred_dashboard_period = preferred_period
+                if is_client_account:
+                    user.business_address = clean_text(request.form.get("business_address")) or None
+                    user.business_type = clean_text(request.form.get("business_type")) or None
+                db.session.commit()
+                session["full_name"] = user.full_name
+                flash("Account settings saved.", "success")
+                return redirect(url_for("settings_page"))
+
+            if form_name == "password":
+                current_password = request.form.get("current_password", "")
+                new_password = request.form.get("new_password", "")
+                confirm_password = request.form.get("confirm_password", "")
+                errors = []
+                if not check_password_hash(user.password, current_password):
+                    errors.append("Current password is incorrect.")
+                if len(new_password) < 8:
+                    errors.append("New password must be at least 8 characters.")
+                if new_password != confirm_password:
+                    errors.append("New password and confirmation do not match.")
+                if errors:
+                    flash(" ".join(errors), "danger")
+                    return redirect(url_for("settings_page"))
+
+                user.password = generate_password_hash(new_password)
+                db.session.commit()
+                flash("Password changed successfully.", "success")
+                return redirect(url_for("settings_page"))
+
+            flash("Choose a valid settings form.", "danger")
+            return redirect(url_for("settings_page"))
+
+        return render_template(
+            "settings.html",
+            page="settings",
+            user=user,
+            is_client_account=is_client_account,
+            dashboard_periods=dashboard_periods,
+        )
 
     @app.route("/clients", methods=["GET", "POST"])
     def clients_page():

@@ -128,19 +128,16 @@
     </section>
   </div>
   <div class="col-lg-4">
-    <section class="section-card h-100" id="account">
-      <div class="section-card__header">
+    <section class="section-card profile-summary-card h-100" id="account">
+      <div class="profile-summary-card__top">
+        <span class="profile-summary-card__avatar">{{ session.get('full_name', 'U')[:1]|upper }}</span>
         <div>
-          <h5>Profile / Account</h5>
-          <p>Your current logged-in client account.</p>
+          <span>Current Account</span>
+          <strong>{{ session.get('full_name') }}</strong>
+          <small>Client · Active</small>
         </div>
       </div>
-      <dl class="mb-0">
-        <dt>Name</dt>
-        <dd>{{ session.get('full_name') }}</dd>
-        <dt>Role</dt>
-        <dd>Client</dd>
-      </dl>
+      <a class="btn btn-outline-primary w-100" href="{{ url_for('settings_page') }}">Manage Settings</a>
       {% if qr_payload %}
       <hr>
       <a class="btn btn-outline-primary w-100" href="{{ qr_payload.feedback_url }}" target="_blank" rel="noopener">Open Customer Feedback Form</a>
