@@ -38,6 +38,9 @@
       </div>
     </aside>
   </div>
+  {% set note_category = 'ROI' %}
+  {% set note_section = 'Sales and ROI' %}
+  {% include '_note_action.html' %}
 </section>
 
 <section class="section-card">
@@ -122,6 +125,9 @@
       </tbody>
     </table>
   </div>
+  {% set note_category = 'ROI' %}
+  {% set note_section = 'Campaign ROI Table' %}
+  {% include '_note_action.html' %}
 </section>
 
 <script id="chart-data" type="application/json">{{ metrics|tojson }}</script>

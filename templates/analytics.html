@@ -18,6 +18,9 @@
   <div class="monthly-revenue-chart-container">
     <canvas id="monthlyRevenueTrendChart"></canvas>
   </div>
+  {% set note_category = 'Financial' %}
+  {% set note_section = 'Monthly Revenue Trend' %}
+  {% include '_note_action.html' %}
 </section>
 
 <section class="section-card chart-card">
@@ -30,6 +33,9 @@
   <div class="financial-line-chart-container financial-line-chart-container--wide">
     <canvas id="revenueChart"></canvas>
   </div>
+  {% set note_category = 'Financial' %}
+  {% set note_section = 'Revenue Trend' %}
+  {% include '_note_action.html' %}
 </section>
 <script id="chart-data" type="application/json">{{ metrics|tojson }}</script>
 {% endblock %}

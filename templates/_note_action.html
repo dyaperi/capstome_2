@@ -1,0 +1,8 @@
+{% if is_staff_user and selected_client %}
+<div class="analysis-note-action">
+  <a class="btn btn-sm btn-outline-primary analysis-note-action__button" href="{{ url_for('analyst_notes_page', prefill_category=note_category|default('General'), related_section=note_section|default('Analysis Section')) }}">
+    <i class="bi bi-journal-plus"></i>
+    <span>Add Note</span>
+  </a>
+</div>
+{% endif %}

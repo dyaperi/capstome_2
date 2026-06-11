@@ -61,7 +61,11 @@
       </div>
       <div class="inventory-detail-summary">
         <div class="inventory-detail-summary__hero">
+          {% if item.image_filename %}
+          <img class="inventory-detail-image" src="{{ url_for('static', filename='uploads/inventory/' ~ item.image_filename) }}" alt="{{ item.ingredient_name }}">
+          {% else %}
           <div class="inventory-stock-avatar inventory-stock-avatar--lg">{{ item.ingredient_name[:2]|upper }}</div>
+          {% endif %}
           <div>
             <strong>{{ item.ingredient_name }}</strong>
             <span>{{ item.category }}</span>
@@ -98,7 +102,9 @@
           <h5>Stock Movement History</h5>
           <p>Restocks, usage deductions, and manual stock corrections.</p>
         </div>
+        {% if can_access_premium_features %}
         <a class="btn btn-sm btn-outline-primary" href="{{ url_for('export_stock_movements_excel', item_id=item.id) }}">Export Excel</a>
+        {% endif %}
       </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle data-table inventory-history-table">

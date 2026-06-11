@@ -42,6 +42,9 @@
       {% else %}
       <div class="empty-state">No menu items available yet. Add a menu item below to see the matrix.</div>
       {% endif %}
+      {% set note_category = 'Menu Engineering' %}
+      {% set note_section = 'Menu Engineering Matrix' %}
+      {% include '_note_action.html' %}
     </section>
   </div>
   <div class="col-lg-4">
@@ -49,9 +52,13 @@
       <div class="section-card__header">
         <div>
           <h5>Strategic actions</h5>
-          <p>Quick recommendations based on each item’s classification.</p>
+          <p>Quick recommendations based on each item's classification.</p>
         </div>
+        {% if can_access_premium_features %}
+        <span class="package-badge package-badge--premium">Premium</span>
+        {% endif %}
       </div>
+      {% if can_access_premium_features %}
       <div class="action-list">
         {% for r in data.rows %}
         <div class="action-list__item">
@@ -66,6 +73,19 @@
         <div class="empty-state">Recommendations will appear after menu items are added.</div>
         {% endfor %}
       </div>
+      {% set note_category = 'Menu Engineering' %}
+      {% set note_section = 'Strategic Actions' %}
+      {% include '_note_action.html' %}
+      {% else %}
+      <div class="premium-locked-card premium-locked-card--compact">
+        <div class="premium-locked-card__icon"><i class="bi bi-lock"></i></div>
+        <div>
+          <span class="package-badge package-badge--standard">Standard</span>
+          <h5>Upgrade to Premium to unlock strategic menu recommendations.</h5>
+          <p>Basic classifications stay available. Premium adds item-level action recommendations.</p>
+        </div>
+      </div>
+      {% endif %}
     </section>
   </div>
 </div>
@@ -148,7 +168,9 @@
       <h5>Menu engineering table</h5>
       <p>Sort by item, margin, sales quantity, profit, or classification.</p>
     </div>
+    {% if can_access_premium_features %}
     <a class="btn btn-sm btn-outline-primary" href="{{ url_for('export_menu_items_excel', search=request.args.get('search',''), category=request.args.get('category','All'), sort_by=request.args.get('sort_by','item_name'), sort_dir=request.args.get('sort_dir','asc')) }}">Export Excel</a>
+    {% endif %}
   </div>
   <div class="table-responsive">
     <table class="table table-sm table-striped table-hover align-middle data-table">

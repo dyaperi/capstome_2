@@ -18,6 +18,27 @@
     }
   };
 
+  const profileInput = document.querySelector('[data-profile-preview-input]');
+  const profilePreviewAvatar = document.querySelector('[data-profile-preview-avatar]');
+  let profilePreviewUrl = null;
+
+  if (profileInput && profilePreviewAvatar) {
+    profileInput.addEventListener('change', () => {
+      const file = profileInput.files && profileInput.files[0];
+      if (!file || !file.type.startsWith('image/')) return;
+
+      if (profilePreviewUrl) {
+        URL.revokeObjectURL(profilePreviewUrl);
+      }
+      profilePreviewUrl = URL.createObjectURL(file);
+      profilePreviewAvatar.innerHTML = '';
+      const image = document.createElement('img');
+      image.src = profilePreviewUrl;
+      image.alt = 'Selected profile preview';
+      profilePreviewAvatar.appendChild(image);
+    });
+  }
+
   if (sidebarToggles.length) {
     const expandedItems = new Set(getExpandedItems());
 
@@ -50,9 +71,36 @@
   const closeClientActionMenus = () => {
     document.querySelectorAll('.client-action-menu.show').forEach((menu) => {
       menu.classList.remove('show');
+      menu.style.top = '';
+      menu.style.left = '';
       const trigger = menu.parentElement && menu.parentElement.querySelector('[data-client-actions]');
       if (trigger) trigger.setAttribute('aria-expanded', 'false');
     });
+  };
+
+  const positionClientActionMenu = (trigger, menu) => {
+    const gap = 8;
+    const edgePadding = 12;
+    const triggerRect = trigger.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const menuWidth = menuRect.width;
+    const menuHeight = menuRect.height;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - triggerRect.bottom;
+    const spaceAbove = triggerRect.top;
+    const opensUpward = spaceBelow < menuHeight + gap && spaceAbove > spaceBelow;
+
+    let left = triggerRect.right - menuWidth;
+    left = Math.max(edgePadding, Math.min(left, viewportWidth - menuWidth - edgePadding));
+
+    let top = opensUpward
+      ? triggerRect.top - menuHeight - gap
+      : triggerRect.bottom + gap;
+    top = Math.max(edgePadding, Math.min(top, viewportHeight - menuHeight - edgePadding));
+
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
   };
 
   document.querySelectorAll('[data-client-actions]').forEach((trigger) => {
@@ -65,8 +113,16 @@
       closeClientActionMenus();
       menu.classList.toggle('show', !isOpen);
       trigger.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
+      if (!isOpen) positionClientActionMenu(trigger, menu);
     });
   });
+
+  document.querySelectorAll('.client-action-menu').forEach((menu) => {
+    menu.addEventListener('click', (event) => event.stopPropagation());
+  });
+
+  window.addEventListener('resize', closeClientActionMenus);
+  window.addEventListener('scroll', closeClientActionMenus, true);
 
   document.addEventListener('click', closeClientActionMenus);
   document.addEventListener('keydown', (event) => {
@@ -660,6 +716,8 @@
   const pieEl = document.getElementById('sentimentPie');
   if (pieEl) {
     const sentimentTotal = Number(data.sentiment_total || 0);
+    const sentimentCounts = data.sentiment_counts || {};
+    const sentimentHasData = sentimentTotal > 0;
     const sentimentCenterPlugin = {
       id: 'sentimentCenterTotal',
       afterDraw(chart) {
@@ -684,17 +742,17 @@
     new Chart(pieEl, {
       type: 'doughnut',
       data: {
-        labels: ['Positive', 'Neutral', 'Negative'],
+        labels: sentimentHasData ? ['Positive', 'Neutral', 'Negative'] : ['No reviews'],
         datasets: [{
-          data: [
-            data.sentiment_counts.positive || 0,
-            data.sentiment_counts.neutral || 0,
-            data.sentiment_counts.negative || 0
-          ],
-          backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+          data: sentimentHasData ? [
+            sentimentCounts.positive || 0,
+            sentimentCounts.neutral || 0,
+            sentimentCounts.negative || 0
+          ] : [1],
+          backgroundColor: sentimentHasData ? ['#10b981', '#f59e0b', '#ef4444'] : ['#e5e7eb'],
           borderColor: '#ffffff',
           borderWidth: 8,
-          hoverOffset: 8,
+          hoverOffset: sentimentHasData ? 8 : 0,
           spacing: 3
         }]
       },
@@ -709,6 +767,7 @@
           tooltip: {
             callbacks: {
               label: (ctx) => {
+                if (!sentimentHasData) return 'No reviews in this range';
                 const value = Number(ctx.raw || 0);
                 const pct = sentimentTotal ? Math.round((value / sentimentTotal) * 100) : 0;
                 return `${ctx.label}: ${value} (${pct}%)`;

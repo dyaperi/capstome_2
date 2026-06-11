@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="settings-page">
+  <div class="page-header settings-header">
+    <div>
+      <p class="eyebrow">Settings</p>
+      <h2>Profile Settings</h2>
+      <p class="text-muted mb-0">Manage your own profile, contact details, and dashboard defaults.</p>
+    </div>
+    <div class="settings-profile-summary">
+      <span class="settings-profile-summary__avatar">
+        {% if user.profile_image %}
+        <img src="{{ url_for('static', filename='uploads/profiles/' ~ user.profile_image) }}" alt="{{ user.full_name }}">
+        {% else %}
+        {{ user.full_name[:1]|upper }}
+        {% endif %}
+      </span>
+      <div>
+        <strong>{{ user.full_name }}</strong>
+        <small>{{ 'Client Account' if is_client_account else 'Admin / Analyst' }}</small>
+      </div>
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('profile_page') }}">Preview</a>
+    </div>
+  </div>
+
+  <div class="settings-layout settings-layout--single">
+    <section class="section-card settings-card">
+      <div class="section-card__header">
+        <div>
+          <h5>Profile Information</h5>
+          <p>These details belong to your logged-in account.</p>
+        </div>
+      </div>
+      <form method="post" class="settings-form" enctype="multipart/form-data">
+        <input type="hidden" name="form_name" value="account">
+        <div class="settings-form__wide profile-upload-panel">
+          <div class="profile-upload-panel__preview">
+            <span class="profile-upload-panel__avatar" data-profile-preview-avatar>
+              {% if user.profile_image %}
+              <img src="{{ url_for('static', filename='uploads/profiles/' ~ user.profile_image) }}" alt="{{ user.full_name }}" data-profile-preview-image>
+              {% else %}
+              <span data-profile-preview-initials>{{ user.full_name[:1]|upper }}</span>
+              {% endif %}
+            </span>
+            <div>
+              <strong>Profile picture</strong>
+              <small>PNG, JPG, JPEG, or WEBP. Maximum 2 MB.</small>
+            </div>
+          </div>
+          <div>
+            <label class="form-label" for="profile_image">Upload / change picture</label>
+            <input class="form-control" id="profile_image" name="profile_image" type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" data-profile-preview-input>
+          </div>
+        </div>
+        <div>
+          <label class="form-label" for="full_name">{{ 'Business name' if is_client_account else 'Full name' }}</label>
+          <input class="form-control" id="full_name" name="full_name" value="{{ user.full_name }}" required>
+        </div>
+        <div>
+          <label class="form-label" for="username">Username or email</label>
+          <input class="form-control" id="username" name="username" value="{{ user.username }}" required>
+        </div>
+        <div>
+          <label class="form-label" for="phone_number">Phone number</label>
+          <input class="form-control" id="phone_number" name="phone_number" value="{{ user.phone_number or '' }}" placeholder="+60">
+        </div>
+        <div>
+          <label class="form-label" for="preferred_dashboard_period">Preferred dashboard period</label>
+          <select class="form-select" id="preferred_dashboard_period" name="preferred_dashboard_period">
+            {% for value, label in dashboard_periods.items() %}
+            <option value="{{ value }}" {% if (user.preferred_dashboard_period or 'month') == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        {% if is_client_account %}
+        <div class="settings-form__wide">
+          <h6 class="settings-section-title">Business / Portfolio Information</h6>
+        </div>
+        <div>
+          <label class="form-label" for="business_type">Business type</label>
+          <input class="form-control" id="business_type" name="business_type" value="{{ user.business_type or '' }}" placeholder="Cafe, restaurant, bakery">
+        </div>
+        <div>
+          <label class="form-label" for="subscription_type">Subscription / package</label>
+          <input class="form-control" id="subscription_type" value="{{ current_account_package }}" readonly>
+          <div class="form-help">
+            <span class="package-badge package-badge--{{ current_account_package|lower }}">{{ current_account_package }}</span>
+            Package changes are handled by your consultant.
+          </div>
+        </div>
+        <div class="settings-form__wide">
+          <label class="form-label" for="business_address">Business address</label>
+          <textarea class="form-control" id="business_address" name="business_address" rows="3">{{ user.business_address or '' }}</textarea>
+        </div>
+        {% endif %}
+
+        <div class="settings-form__actions">
+          <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle"></i> Save Changes</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('profile_page') }}"><i class="bi bi-person-badge"></i> Preview Profile</a>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}

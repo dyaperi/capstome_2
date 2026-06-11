@@ -20,8 +20,9 @@
   </div>
   <form method="get" class="entry-form">
     <input type="hidden" name="period" value="{{ selected_period }}">
+    <input type="hidden" name="mode" value="custom">
     <div class="row g-3 align-items-end">
-      <div class="col-md-5">
+      <div class="col-md-4">
         <label class="form-label">Review source</label>
         <select class="form-select" name="source">
           <option value="All" {% if selected_source == 'All' %}selected{% endif %}>All Sources</option>
@@ -30,8 +31,17 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2">
+      <div class="col-md-3">
+        <label class="form-label">Start Date</label>
+        <input class="form-control" type="date" name="start_date" value="{{ filter_start_date }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">End Date</label>
+        <input class="form-control" type="date" name="end_date" value="{{ filter_end_date }}">
+      </div>
+      <div class="col-md-2 d-grid gap-2">
         <button class="btn btn-outline-primary w-100">Apply</button>
+        <a class="btn btn-outline-secondary w-100" href="{{ url_for('sentiment_page', reset=1) }}">Clear</a>
       </div>
     </div>
   </form>
@@ -41,12 +51,12 @@
   <div class="section-card__header sentiment-distribution-header">
     <div>
       <h5>Sentiment Distribution</h5>
-      <p>{{ period_label }} - {{ period_start }} to {{ period_end }}</p>
+      <p>{{ period_label }} - {{ filter_start_date }} to {{ filter_end_date }}</p>
     </div>
     <div class="list-filter-actions sentiment-period-filter" aria-label="Sentiment period filters">
-      <a class="btn btn-sm {{ 'btn-primary' if selected_period == 'day' else 'btn-outline-secondary' }}" href="{{ url_for('sentiment_page', period='day', source=selected_source) }}">Day</a>
-      <a class="btn btn-sm {{ 'btn-primary' if selected_period == 'week' else 'btn-outline-secondary' }}" href="{{ url_for('sentiment_page', period='week', source=selected_source) }}">Week</a>
-      <a class="btn btn-sm {{ 'btn-primary' if selected_period == 'month' else 'btn-outline-secondary' }}" href="{{ url_for('sentiment_page', period='month', source=selected_source) }}">Month</a>
+      <a class="btn btn-sm {{ 'btn-primary' if selected_period == 'day' and not custom_range_active else 'btn-outline-secondary' }}" href="{{ url_for('sentiment_page', period='day', source=selected_source) }}">Day</a>
+      <a class="btn btn-sm {{ 'btn-primary' if selected_period == 'week' and not custom_range_active else 'btn-outline-secondary' }}" href="{{ url_for('sentiment_page', period='week', source=selected_source) }}">Week</a>
+      <a class="btn btn-sm {{ 'btn-primary' if selected_period == 'month' and not custom_range_active else 'btn-outline-secondary' }}" href="{{ url_for('sentiment_page', period='month', source=selected_source) }}">Month</a>
     </div>
   </div>
 
@@ -79,6 +89,9 @@
       </div>
     </div>
   </div>
+  {% set note_category = 'Sentiment' %}
+  {% set note_section = 'Sentiment Distribution' %}
+  {% include '_note_action.html' %}
 </section>
 
 <section class="section-card chart-card">
@@ -91,6 +104,9 @@
   <div class="sentiment-sales-chart-wrap">
     <canvas id="sentimentSales"></canvas>
   </div>
+  {% set note_category = 'Sentiment' %}
+  {% set note_section = 'Sentiment vs Sales' %}
+  {% include '_note_action.html' %}
 </section>
 
 <section class="section-card">
@@ -112,6 +128,9 @@
       </tbody>
     </table>
   </div>
+  {% set note_category = 'Sentiment' %}
+  {% set note_section = 'Sentiment Trend Over Time' %}
+  {% include '_note_action.html' %}
 </section>
 
 <div class="row g-3">
@@ -128,6 +147,9 @@
         <div class="action-list__item"><strong>Neutral:</strong> {{ intelligence.distribution.neutral }}</div>
         <div class="action-list__item"><strong>Negative:</strong> {{ intelligence.distribution.negative }}</div>
       </div>
+      {% set note_category = 'Sentiment' %}
+      {% set note_section = 'Sentiment Totals' %}
+      {% include '_note_action.html' %}
     </section>
   </div>
   <div class="col-md-8">
@@ -150,6 +172,9 @@
           </tbody>
         </table>
       </div>
+      {% set note_category = 'Sentiment' %}
+      {% set note_section = 'Issue Tagging' %}
+      {% include '_note_action.html' %}
     </section>
   </div>
 </div>
@@ -173,6 +198,9 @@
       </tbody>
     </table>
   </div>
+  {% set note_category = 'Sentiment' %}
+  {% set note_section = 'Platform / Source Breakdown' %}
+  {% include '_note_action.html' %}
 </section>
 
 <section class="section-card">
@@ -194,6 +222,9 @@
       </tbody>
     </table>
   </div>
+  {% set note_category = 'Sentiment' %}
+  {% set note_section = 'Critical Alerts' %}
+  {% include '_note_action.html' %}
 </section>
 
 <section class="section-card">
@@ -208,6 +239,9 @@
     <div class="action-list__item"><strong>{{ rec.issue_tag }}:</strong> {{ rec.recommendation }}</div>
     {% endfor %}
   </div>
+  {% set note_category = 'Sentiment' %}
+  {% set note_section = 'Sentiment Recommendations' %}
+  {% include '_note_action.html' %}
 </section>
 
 <script id="chart-data" type="application/json">{{ metrics|tojson }}</script>

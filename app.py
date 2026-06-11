@@ -1,5 +1,6 @@
 from datetime import date, datetime, timedelta
 from io import BytesIO
+import os
 import re
 import secrets
 from urllib.parse import quote_plus
@@ -7,12 +8,13 @@ from urllib.parse import quote_plus
 import pandas as pd
 from flask import Flask, current_app, flash, jsonify, redirect, render_template, request, send_file, session, url_for
 from sqlalchemy import distinct, func, inspect, or_, text
+from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from analytics import analyze_sentiment, campaign_roi, forecast_values
 from config import Config
 from db import db
-from models import AnalystNote, CustomerReview, Expense, ForecastResult, InventoryItem, MarketingCampaign, MenuItem, Sale, StockMovement, User
+from models import ActivityLog, AnalystNote, CustomerReview, Expense, ForecastResult, InventoryItem, MarketingCampaign, MenuItem, Sale, StockMovement, User
 from services.role_service import RoleService
 
 REVIEW_SOURCES = [
@@ -52,6 +54,36 @@ ISSUE_RECOMMENDATIONS = {
     "General": "Review recurring comments weekly and assign improvement owners.",
 }
 CSRF_FIELD_NAME = "csrf_token"
+INVENTORY_IMAGE_UPLOAD_FOLDER = os.path.join("static", "uploads", "inventory")
+ALLOWED_INVENTORY_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+MAX_INVENTORY_IMAGE_BYTES = 2 * 1024 * 1024
+PROFILE_IMAGE_UPLOAD_FOLDER = os.path.join("static", "uploads", "profiles")
+ALLOWED_PROFILE_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+ALLOWED_PROFILE_IMAGE_MIME_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/pjpeg", "image/webp"}
+MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024
+PACKAGE_STANDARD = "Standard"
+PACKAGE_PREMIUM = "Premium"
+PACKAGE_OPTIONS = [PACKAGE_STANDARD, PACKAGE_PREMIUM]
+DASHBOARD_PERIODS = {
+    "week": "Last 7 days",
+    "month": "This month",
+    "quarter": "This quarter",
+    "year": "This year",
+}
+SENTIMENT_FILTER_SESSION_PREFIX = "sentiment_filter"
+ANALYST_NOTE_CATEGORIES = [
+    "Financial",
+    "Forecast",
+    "ROI",
+    "Sentiment",
+    "Menu Engineering",
+    "Inventory",
+    "Operations",
+    "Marketing",
+    "General",
+]
+ANALYST_NOTE_PRIORITIES = ["Low", "Medium", "High"]
+ANALYST_NOTE_STATUSES = ["Open", "Resolved", "Archived"]
 
 
 def create_app() -> Flask:
@@ -84,9 +116,10 @@ def seed_default_data() -> None:
     else:
         if admin_user.role != RoleService.ADMIN_ANALYST:
             admin_user.role = RoleService.ADMIN_ANALYST
-        admin_user.full_name = "SME Consultant"
-        admin_user.status = "active"
-        admin_user.password = generate_password_hash("admin123")
+        if not clean_text(admin_user.full_name):
+            admin_user.full_name = "SME Consultant"
+        if not clean_text(admin_user.status):
+            admin_user.status = "active"
 
     client_user = User.query.filter_by(username="client").first()
     if not client_user:
@@ -102,9 +135,10 @@ def seed_default_data() -> None:
     else:
         if client_user.role != RoleService.CLIENT:
             client_user.role = RoleService.CLIENT
-        client_user.full_name = "SME Client"
-        client_user.status = "active"
-        client_user.password = generate_password_hash("client123")
+        if not clean_text(client_user.full_name):
+            client_user.full_name = "SME Client"
+        if not clean_text(client_user.status):
+            client_user.status = "active"
 
     db.session.flush()
     demo_client = User.query.filter_by(username="client", role=RoleService.CLIENT).first()
@@ -195,6 +229,40 @@ def current_client_id():
     return None
 
 
+def normalize_subscription_type(value) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized == PACKAGE_PREMIUM.lower():
+        return PACKAGE_PREMIUM
+    return PACKAGE_STANDARD
+
+
+def get_user_package(user: User | None = None) -> str:
+    if user is None:
+        user_id = current_user_id()
+        user = db.session.get(User, user_id) if user_id else None
+    return normalize_subscription_type(getattr(user, "subscription_type", None))
+
+
+def is_premium_client(user: User | None = None) -> bool:
+    if user is None:
+        user_id = current_user_id()
+        user = db.session.get(User, user_id) if user_id else None
+    return bool(user and (user.role or RoleService.CLIENT) == RoleService.CLIENT and get_user_package(user) == PACKAGE_PREMIUM)
+
+
+def can_access_premium_features(user: User | None = None) -> bool:
+    if staff_required():
+        return True
+    return is_premium_client(user)
+
+
+def require_premium_access(feature_name: str = "This feature"):
+    if staff_required() or is_premium_client():
+        return None
+    flash(f"Premium required. Upgrade to Premium to unlock {feature_name}.", "warning")
+    return redirect(url_for("dashboard"))
+
+
 def scoped_query(model):
     query = model.query
     client_id = current_client_id()
@@ -273,14 +341,22 @@ def is_valid_csrf_token(received_token) -> bool:
 def register_security_hooks(app: Flask) -> None:
     @app.context_processor
     def inject_csrf_token():
+        selected_portfolio = selected_client()
+        current_account = db.session.get(User, current_user_id()) if current_user_id() else None
         return {
             "csrf_token": csrf_token,
             "csrf_field_name": CSRF_FIELD_NAME,
             "import_specs": import_specs_for_template(),
-            "selected_client": selected_client(),
+            "selected_client": selected_portfolio,
             "selected_client_id": current_client_id(),
             "is_staff_user": staff_required(),
             "is_client_user": client_required(),
+            "current_account": current_account,
+            "package_options": PACKAGE_OPTIONS,
+            "get_user_package": get_user_package,
+            "current_account_package": get_user_package(current_account),
+            "selected_client_package": get_user_package(selected_portfolio) if selected_portfolio else None,
+            "can_access_premium_features": can_access_premium_features(current_account),
         }
 
     @app.before_request
@@ -334,6 +410,8 @@ def ensure_schema_updates() -> None:
         db.session.execute(text("ALTER TABLE users ADD COLUMN subscription_type VARCHAR(80)"))
     if "preferred_dashboard_period" not in user_columns:
         db.session.execute(text("ALTER TABLE users ADD COLUMN preferred_dashboard_period VARCHAR(30) DEFAULT 'month'"))
+    if "profile_image" not in user_columns:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN profile_image VARCHAR(255)"))
     if "updated_at" not in user_columns:
         db.session.execute(text("ALTER TABLE users ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
     for table_name in ["menu_items", "sales", "expenses", "marketing_campaigns", "inventory_items", "forecast_results"]:
@@ -342,6 +420,31 @@ def ensure_schema_updates() -> None:
             db.session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN client_id INTEGER NULL"))
         elif not table_columns["client_id"].get("nullable", True) and dialect_name == "mysql":
             db.session.execute(text(f"ALTER TABLE {table_name} MODIFY COLUMN client_id INTEGER NULL"))
+    inventory_columns = {col["name"] for col in inspector.get_columns("inventory_items")}
+    if "image_filename" not in inventory_columns:
+        db.session.execute(text("ALTER TABLE inventory_items ADD COLUMN image_filename VARCHAR(255)"))
+    analyst_note_columns = {col["name"] for col in inspector.get_columns("analyst_notes")}
+    if "title" not in analyst_note_columns:
+        db.session.execute(text("ALTER TABLE analyst_notes ADD COLUMN title VARCHAR(160)"))
+    if "category" not in analyst_note_columns:
+        db.session.execute(text("ALTER TABLE analyst_notes ADD COLUMN category VARCHAR(80) DEFAULT 'General'"))
+    if "priority" not in analyst_note_columns:
+        db.session.execute(text("ALTER TABLE analyst_notes ADD COLUMN priority VARCHAR(20) DEFAULT 'Medium'"))
+    if "related_section" not in analyst_note_columns:
+        db.session.execute(text("ALTER TABLE analyst_notes ADD COLUMN related_section VARCHAR(120)"))
+    if "status" not in analyst_note_columns:
+        db.session.execute(text("ALTER TABLE analyst_notes ADD COLUMN status VARCHAR(20) DEFAULT 'Open'"))
+    if "updated_at" not in analyst_note_columns:
+        db.session.execute(text("ALTER TABLE analyst_notes ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
+    db.session.execute(
+        text(
+            "UPDATE analyst_notes SET "
+            "title = COALESCE(NULLIF(title, ''), 'Analyst Recommendation'), "
+            "category = COALESCE(NULLIF(category, ''), 'General'), "
+            "priority = COALESCE(NULLIF(priority, ''), 'Medium'), "
+            "status = COALESCE(NULLIF(status, ''), 'Open')"
+        )
+    )
     review_columns = {col["name"] for col in inspector.get_columns("customer_reviews")}
     if "client_id" not in review_columns:
         db.session.execute(text("ALTER TABLE customer_reviews ADD COLUMN client_id INTEGER NULL"))
@@ -619,6 +722,54 @@ def month_bounds(day: date) -> tuple[date, date]:
     else:
         end = start.replace(month=start.month + 1) - timedelta(days=1)
     return start, end
+
+
+def sentiment_summary_from_reviews(reviews) -> dict:
+    counts = {"positive": 0, "neutral": 0, "negative": 0}
+    for review in reviews:
+        label = clean_text(getattr(review, "sentiment_label", "")).lower()
+        if label in counts:
+            counts[label] += 1
+    total = sum(counts.values())
+    percentages = {
+        key: round((value / total) * 100) if total else 0
+        for key, value in counts.items()
+    }
+    return {
+        "sentiment_counts": counts,
+        "sentiment_total": total,
+        "sentiment_percentages": percentages,
+    }
+
+
+def sentiment_filter_session_key() -> str:
+    return f"{SENTIMENT_FILTER_SESSION_PREFIX}:{current_client_id() or 'none'}"
+
+
+def default_sentiment_filter() -> dict:
+    start, end = month_bounds(date.today())
+    return {
+        "source": "All",
+        "period": "month",
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "mode": "period",
+    }
+
+
+def save_sentiment_filter(filter_state: dict) -> None:
+    session[sentiment_filter_session_key()] = {
+        "source": clean_text(filter_state.get("source")) or "All",
+        "period": clean_text(filter_state.get("period")) or "month",
+        "start_date": clean_text(filter_state.get("start_date")),
+        "end_date": clean_text(filter_state.get("end_date")),
+        "mode": clean_text(filter_state.get("mode")) or "period",
+    }
+
+
+def load_sentiment_filter() -> dict:
+    saved = session.get(sentiment_filter_session_key())
+    return saved if isinstance(saved, dict) else default_sentiment_filter()
 
 
 def build_record_list(query, date_column, *, module_label: str) -> tuple[list, dict]:
@@ -965,6 +1116,59 @@ def apply_stock_movement(item: InventoryItem, movement_type: str, quantity: floa
         item.current_stock = max(current_stock - quantity, 0)
     else:
         item.current_stock = max(current_stock + quantity, 0)
+
+
+def save_inventory_image_upload():
+    upload = request.files.get("ingredient_image")
+    if not upload or not upload.filename:
+        return None, []
+
+    original_name = secure_filename(upload.filename)
+    extension = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else ""
+    if extension not in ALLOWED_INVENTORY_IMAGE_EXTENSIONS:
+        return None, ["Ingredient image must be a PNG, JPG, JPEG, or WEBP file."]
+
+    upload.stream.seek(0, os.SEEK_END)
+    file_size = upload.stream.tell()
+    upload.stream.seek(0)
+    if file_size > MAX_INVENTORY_IMAGE_BYTES:
+        return None, ["Ingredient image must be 2 MB or smaller."]
+
+    upload_dir = os.path.join(current_app.root_path, INVENTORY_IMAGE_UPLOAD_FOLDER)
+    os.makedirs(upload_dir, exist_ok=True)
+    base_name = os.path.splitext(original_name)[0] or "ingredient"
+    filename = f"{secrets.token_hex(8)}_{base_name[:60]}.{extension}"
+    upload.save(os.path.join(upload_dir, filename))
+    return filename, []
+
+
+def save_profile_image_upload():
+    upload = request.files.get("profile_image")
+    if not upload or not upload.filename:
+        return None, []
+
+    original_name = secure_filename(upload.filename)
+    extension = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else ""
+    if extension not in ALLOWED_PROFILE_IMAGE_EXTENSIONS:
+        return None, ["Profile picture must be a PNG, JPG, JPEG, or WEBP file."]
+    if upload.mimetype and upload.mimetype not in ALLOWED_PROFILE_IMAGE_MIME_TYPES:
+        return None, ["Profile picture must be a valid PNG, JPG, JPEG, or WEBP image."]
+
+    upload.stream.seek(0, os.SEEK_END)
+    file_size = upload.stream.tell()
+    upload.stream.seek(0)
+    if file_size > MAX_PROFILE_IMAGE_BYTES:
+        return None, ["Profile picture must be 2 MB or smaller."]
+
+    upload_dir = os.path.join(current_app.root_path, PROFILE_IMAGE_UPLOAD_FOLDER)
+    try:
+        os.makedirs(upload_dir, exist_ok=True)
+        base_name = os.path.splitext(original_name)[0] or "profile"
+        filename = f"{secrets.token_hex(8)}_{base_name[:60]}.{extension}"
+        upload.save(os.path.join(upload_dir, filename))
+    except OSError:
+        return None, ["Profile picture could not be saved. Please try again."]
+    return filename, []
 
 
 IMPORT_SPECS = {
@@ -1344,6 +1548,8 @@ def compute_dashboard_metrics(client_id: int | None = None) -> dict:
             for r in reviews
         ]
     )
+    sentiment_summary = sentiment_summary_from_reviews(reviews)
+    positive_ratio = sentiment_summary["sentiment_percentages"]["positive"]
 
     month_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     trend_dates = []
@@ -1431,7 +1637,7 @@ def compute_dashboard_metrics(client_id: int | None = None) -> dict:
 
     if sales_df.empty:
         return {
-            "kpis": {"revenue": 0, "cost": 0, "profit": 0, "roi": round(float(total_roi), 2), "positive_sentiment": 0},
+            "kpis": {"revenue": 0, "cost": 0, "profit": 0, "roi": round(float(total_roi), 2), "positive_sentiment": round(float(positive_ratio), 2)},
             "revenue_labels": [],
             "revenue_values": [],
             "cash_values": [],
@@ -1439,7 +1645,9 @@ def compute_dashboard_metrics(client_id: int | None = None) -> dict:
             "forecast_revenue": [],
             "forecast_cash": [],
             "campaign_roi": campaign_roi_list,
-            "sentiment_counts": {"positive": 0, "neutral": 0, "negative": 0},
+            "sentiment_counts": sentiment_summary["sentiment_counts"],
+            "sentiment_total": sentiment_summary["sentiment_total"],
+            "sentiment_percentages": sentiment_summary["sentiment_percentages"],
             "sentiment_vs_sales_labels": [],
             "sentiment_vs_sales_revenue": [],
             "sentiment_vs_sales_sentiment": [],
@@ -1487,14 +1695,8 @@ def compute_dashboard_metrics(client_id: int | None = None) -> dict:
     forecast_cash = [round(revenue - expenses, 2) for revenue, expenses in zip(forecast_revenue, forecast_expenses)]
     forecast_dates = [(daily["date"].max() + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(1, future_days + 1)]
 
-    sentiment_counts = {"positive": 0, "neutral": 0, "negative": 0}
     compare_labels, compare_sales, compare_sentiment = [], [], []
-    positive_ratio = 0.0
     if not review_df.empty:
-        counts = review_df["sentiment_label"].value_counts().to_dict()
-        sentiment_counts.update(counts)
-        positive_ratio = (review_df["sentiment_label"] == "positive").mean() * 100
-
         sentiment_daily = review_df.groupby("date", as_index=False).agg(sentiment_score=("sentiment_score", "mean"))
         joined = daily[["date", "revenue"]].merge(sentiment_daily, on="date", how="left").ffill()
         joined = joined.dropna()
@@ -1533,7 +1735,9 @@ def compute_dashboard_metrics(client_id: int | None = None) -> dict:
         "forecast_revenue": [round(x, 2) for x in forecast_revenue],
         "forecast_cash": [round(x, 2) for x in forecast_cash],
         "campaign_roi": campaign_roi_list,
-        "sentiment_counts": sentiment_counts,
+        "sentiment_counts": sentiment_summary["sentiment_counts"],
+        "sentiment_total": sentiment_summary["sentiment_total"],
+        "sentiment_percentages": sentiment_summary["sentiment_percentages"],
         "sentiment_vs_sales_labels": compare_labels,
         "sentiment_vs_sales_revenue": compare_sales,
         "sentiment_vs_sales_sentiment": compare_sentiment,
@@ -1880,7 +2084,111 @@ def client_portfolio_summary(client: User) -> dict:
         "last_activity": last_activity,
         "created_at": client.created_at,
         "last_login_at": client.last_login_at,
+        "subscription_type": get_user_package(client),
     }
+
+
+def analyst_note_payload_from_form() -> tuple[dict, list[str]]:
+    title = clean_text(request.form.get("title")) or "Analyst Recommendation"
+    category = clean_text(request.form.get("category")) or "General"
+    priority = clean_text(request.form.get("priority")) or "Medium"
+    related_section = clean_text(request.form.get("related_section")) or None
+    status = clean_text(request.form.get("status")) or "Open"
+    note_text = clean_text(request.form.get("note_text"))
+    errors = []
+    if category not in ANALYST_NOTE_CATEGORIES:
+        errors.append("Choose a valid note category.")
+    if priority not in ANALYST_NOTE_PRIORITIES:
+        errors.append("Choose a valid priority.")
+    if status not in ANALYST_NOTE_STATUSES:
+        errors.append("Choose a valid note status.")
+    if not note_text:
+        errors.append("Note text is required.")
+    return {
+        "title": title[:160],
+        "category": category,
+        "priority": priority,
+        "related_section": related_section[:120] if related_section else None,
+        "status": status,
+        "note_text": note_text,
+    }, errors
+
+
+def selected_client_note_query():
+    client_id = selected_client_id()
+    return AnalystNote.query.filter(AnalystNote.client_user_id == client_id) if client_id else None
+
+
+def get_selected_client_note_or_404(note_id: int):
+    query = selected_client_note_query()
+    if query is None:
+        return None
+    return query.filter(AnalystNote.id == note_id).first_or_404()
+
+
+def add_account_activity(
+    user: User,
+    activity_type: str,
+    description: str,
+    *,
+    created_at: datetime | None = None,
+) -> None:
+    db.session.add(
+        ActivityLog(
+            user_id=user.id,
+            activity_type=activity_type,
+            description=description,
+            created_at=created_at or datetime.utcnow(),
+        )
+    )
+
+
+def account_activity_timeline(user: User, limit: int = 10) -> list[dict]:
+    icon_by_type = {
+        "login": "bi-clock-history",
+        "profile_updated": "bi-person-check",
+        "password_changed": "bi-shield-check",
+        "account_created": "bi-check2-circle",
+    }
+    logs = (
+        ActivityLog.query.filter_by(user_id=user.id)
+        .order_by(ActivityLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    entries = [
+        {
+            "activity_type": log.activity_type,
+            "description": log.description,
+            "created_at": log.created_at,
+            "icon": icon_by_type.get(log.activity_type, "bi-activity"),
+        }
+        for log in logs
+        if log.created_at
+    ]
+    recorded_types = {entry["activity_type"] for entry in entries}
+
+    if user.last_login_at and "login" not in recorded_types:
+        entries.append(
+            {
+                "activity_type": "login",
+                "description": "Logged in to account",
+                "created_at": user.last_login_at,
+                "icon": icon_by_type["login"],
+            }
+        )
+    if user.created_at and "account_created" not in recorded_types:
+        entries.append(
+            {
+                "activity_type": "account_created",
+                "description": "Account created",
+                "created_at": user.created_at,
+                "icon": icon_by_type["account_created"],
+            }
+        )
+
+    entries.sort(key=lambda entry: entry["created_at"], reverse=True)
+    return entries[:limit]
 
 
 def register_routes(app: Flask) -> None:
@@ -1914,7 +2222,14 @@ def register_routes(app: Flask) -> None:
                 session["role"] = user_role
                 session.pop("selected_client_id", None)
                 session.pop("selected_client_name", None)
-                user.last_login_at = datetime.utcnow()
+                login_time = datetime.utcnow()
+                user.last_login_at = login_time
+                add_account_activity(
+                    user,
+                    "login",
+                    "Logged in to account",
+                    created_at=login_time,
+                )
                 db.session.commit()
                 if user_role == RoleService.ADMIN_ANALYST:
                     return redirect(url_for("clients_page"))
@@ -1933,81 +2248,175 @@ def register_routes(app: Flask) -> None:
         if login_redirect:
             return login_redirect
 
+        if request.method == "POST":
+            form_name = clean_text(request.form.get("form_name"))
+            if form_name == "password":
+                return redirect(url_for("settings_security_page"), code=307)
+            if form_name == "account":
+                return redirect(url_for("settings_profile_page"), code=307)
+            flash("Choose a valid settings form.", "danger")
+        return redirect(url_for("settings_profile_page"))
+
+    @app.route("/settings/profile", methods=["GET", "POST"])
+    def settings_profile_page():
+        login_redirect = require_login_redirect()
+        if login_redirect:
+            return login_redirect
+
         user = db.session.get(User, session["user_id"])
         if not user:
             session.clear()
             flash("Please log in again.", "warning")
             return redirect(url_for("login"))
         is_client_account = (user.role or RoleService.CLIENT) == RoleService.CLIENT
-        dashboard_periods = {
-            "week": "Last 7 days",
-            "month": "This month",
-            "quarter": "This quarter",
-            "year": "This year",
-        }
 
         if request.method == "POST":
             form_name = clean_text(request.form.get("form_name"))
-            if form_name == "account":
-                full_name = clean_text(request.form.get("full_name"))
-                username = clean_text(request.form.get("username"))
-                phone_number = clean_text(request.form.get("phone_number")) or None
-                preferred_period = clean_text(request.form.get("preferred_dashboard_period")) or "month"
-                errors = []
-                if not full_name:
-                    errors.append("Name is required.")
-                if not username:
-                    errors.append("Username or email is required.")
-                if preferred_period not in dashboard_periods:
-                    errors.append("Choose a valid dashboard period.")
-                existing_user = User.query.filter(User.username == username, User.id != user.id).first() if username else None
-                if existing_user:
-                    errors.append("That username or email is already in use.")
-                if errors:
-                    flash(" ".join(errors), "danger")
-                    return redirect(url_for("settings_page"))
+            if form_name != "account":
+                flash("Choose a valid profile settings form.", "danger")
+                return redirect(url_for("settings_profile_page"))
 
-                user.full_name = full_name
-                user.username = username
-                user.phone_number = phone_number
-                user.preferred_dashboard_period = preferred_period
-                if is_client_account:
-                    user.business_address = clean_text(request.form.get("business_address")) or None
-                    user.business_type = clean_text(request.form.get("business_type")) or None
-                db.session.commit()
-                session["full_name"] = user.full_name
-                flash("Account settings saved.", "success")
-                return redirect(url_for("settings_page"))
+            full_name = clean_text(request.form.get("full_name"))
+            username = clean_text(request.form.get("username"))
+            phone_number = clean_text(request.form.get("phone_number")) or None
+            preferred_period = clean_text(request.form.get("preferred_dashboard_period")) or "month"
+            errors = []
+            if not full_name:
+                errors.append("Name is required.")
+            if not username:
+                errors.append("Username or email is required.")
+            if preferred_period not in DASHBOARD_PERIODS:
+                errors.append("Choose a valid dashboard period.")
+            existing_user = User.query.filter(User.username == username, User.id != user.id).first() if username else None
+            if existing_user:
+                errors.append("That username or email is already in use.")
+            if errors:
+                flash(" ".join(errors), "danger")
+                return redirect(url_for("settings_profile_page"))
 
-            if form_name == "password":
-                current_password = request.form.get("current_password", "")
-                new_password = request.form.get("new_password", "")
-                confirm_password = request.form.get("confirm_password", "")
-                errors = []
-                if not check_password_hash(user.password, current_password):
-                    errors.append("Current password is incorrect.")
-                if len(new_password) < 8:
-                    errors.append("New password must be at least 8 characters.")
-                if new_password != confirm_password:
-                    errors.append("New password and confirmation do not match.")
-                if errors:
-                    flash(" ".join(errors), "danger")
-                    return redirect(url_for("settings_page"))
+            profile_image, image_errors = save_profile_image_upload()
+            if image_errors:
+                flash(" ".join(image_errors), "danger")
+                return redirect(url_for("settings_profile_page"))
 
-                user.password = generate_password_hash(new_password)
-                db.session.commit()
-                flash("Password changed successfully.", "success")
-                return redirect(url_for("settings_page"))
-
-            flash("Choose a valid settings form.", "danger")
-            return redirect(url_for("settings_page"))
+            user.full_name = full_name
+            user.username = username
+            user.phone_number = phone_number
+            user.preferred_dashboard_period = preferred_period
+            if profile_image:
+                user.profile_image = profile_image
+            if is_client_account:
+                user.business_address = clean_text(request.form.get("business_address")) or None
+                user.business_type = clean_text(request.form.get("business_type")) or None
+            add_account_activity(user, "profile_updated", "Updated profile information")
+            db.session.commit()
+            session["full_name"] = user.full_name
+            flash("Profile settings saved.", "success")
+            return redirect(url_for("settings_profile_page"))
 
         return render_template(
-            "settings.html",
-            page="settings",
+            "settings_profile.html",
+            page="settings_profile",
             user=user,
             is_client_account=is_client_account,
-            dashboard_periods=dashboard_periods,
+            dashboard_periods=DASHBOARD_PERIODS,
+        )
+
+    @app.route("/settings/security", methods=["GET", "POST"])
+    def settings_security_page():
+        login_redirect = require_login_redirect()
+        if login_redirect:
+            return login_redirect
+
+        user = db.session.get(User, session["user_id"])
+        if not user:
+            session.clear()
+            flash("Please log in again.", "warning")
+            return redirect(url_for("login"))
+
+        if request.method == "POST":
+            form_name = clean_text(request.form.get("form_name"))
+            if form_name != "password":
+                flash("Choose a valid account security form.", "danger")
+                return redirect(url_for("settings_security_page"))
+
+            current_password = request.form.get("current_password", "")
+            new_password = request.form.get("new_password", "")
+            confirm_password = request.form.get("confirm_password", "")
+            errors = []
+            if not check_password_hash(user.password, current_password):
+                errors.append("Current password is incorrect.")
+            if len(new_password) < 8:
+                errors.append("New password must be at least 8 characters.")
+            if new_password != confirm_password:
+                errors.append("New password and confirmation do not match.")
+            if errors:
+                flash(" ".join(errors), "danger")
+                return redirect(url_for("settings_security_page"))
+
+            user.password = generate_password_hash(new_password)
+            add_account_activity(user, "password_changed", "Changed account password")
+            db.session.commit()
+            flash("Password changed successfully.", "success")
+            return redirect(url_for("settings_security_page"))
+
+        is_client_account = (user.role or RoleService.CLIENT) == RoleService.CLIENT
+        return render_template(
+            "settings_security.html",
+            page="settings_security",
+            user=user,
+            is_client_account=is_client_account,
+            role_label="Client" if is_client_account else "Admin / Analyst",
+            activity_entries=account_activity_timeline(user),
+        )
+
+    @app.route("/settings/plans")
+    def plans_features_page():
+        login_redirect = require_login_redirect()
+        if login_redirect:
+            return login_redirect
+
+        user = db.session.get(User, session["user_id"])
+        if not user:
+            session.clear()
+            flash("Please log in again.", "warning")
+            return redirect(url_for("login"))
+
+        is_client_account = (user.role or RoleService.CLIENT) == RoleService.CLIENT
+        plan_user = user if is_client_account else selected_client()
+        active_package = get_user_package(plan_user) if plan_user else None
+        return render_template(
+            "plans_features.html",
+            page="settings_plans",
+            user=user,
+            plan_user=plan_user,
+            active_package=active_package,
+            is_client_account=is_client_account,
+        )
+
+    @app.route("/settings/plans-features")
+    def legacy_plans_features_page():
+        login_redirect = require_login_redirect()
+        if login_redirect:
+            return login_redirect
+        return redirect(url_for("plans_features_page"))
+
+    @app.route("/profile")
+    def profile_page():
+        login_redirect = require_login_redirect()
+        if login_redirect:
+            return login_redirect
+
+        user = db.session.get(User, session["user_id"])
+        if not user:
+            session.clear()
+            flash("Please log in again.", "warning")
+            return redirect(url_for("login"))
+        return render_template(
+            "profile.html",
+            page="profile",
+            user=user,
+            is_client_account=(user.role or RoleService.CLIENT) == RoleService.CLIENT,
         )
 
     @app.route("/clients", methods=["GET", "POST"])
@@ -2021,6 +2430,7 @@ def register_routes(app: Flask) -> None:
             username = clean_text(request.form.get("username"))
             password = request.form.get("password") or "client123"
             status = clean_text(request.form.get("status")) or "active"
+            subscription_type = normalize_subscription_type(request.form.get("subscription_type"))
             errors = []
             if not full_name:
                 errors.append("Business name is required.")
@@ -2039,6 +2449,7 @@ def register_routes(app: Flask) -> None:
                 full_name=full_name,
                 role=RoleService.CLIENT,
                 status=status,
+                subscription_type=subscription_type,
                 password=generate_password_hash(password),
             )
             db.session.add(client)
@@ -2123,12 +2534,25 @@ def register_routes(app: Flask) -> None:
         client.full_name = full_name
         client.username = username
         client.status = status
+        if "subscription_type" in request.form:
+            client.subscription_type = normalize_subscription_type(request.form.get("subscription_type"))
         if password:
             client.password = generate_password_hash(password)
         db.session.commit()
         if selected_client_id() == client.id:
             session["selected_client_name"] = client.full_name
         flash("Client profile updated.", "success")
+        return redirect(url_for("clients_page", q=client.username))
+
+    @app.route("/clients/<int:client_id>/package", methods=["POST"])
+    def client_package(client_id: int):
+        if not staff_required():
+            flash("Admin / Analyst access required.", "warning")
+            return redirect(url_for("dashboard"))
+        client = User.query.filter_by(id=client_id, role=RoleService.CLIENT).first_or_404()
+        client.subscription_type = normalize_subscription_type(request.form.get("subscription_type"))
+        db.session.commit()
+        flash(f"{client.full_name} package updated to {client.subscription_type or PACKAGE_STANDARD}.", "success")
         return redirect(url_for("clients_page", q=client.username))
 
     @app.route("/clients/<int:client_id>/status", methods=["POST"])
@@ -2164,20 +2588,123 @@ def register_routes(app: Flask) -> None:
             flash("Admin / Analyst access required.", "warning")
             return redirect(url_for("dashboard"))
         client = User.query.filter_by(id=client_id, role=RoleService.CLIENT).first_or_404()
-        note_text = clean_text(request.form.get("note_text"))
-        if not note_text:
-            flash("Note text is required.", "danger")
+        payload, errors = analyst_note_payload_from_form()
+        if errors:
+            flash(" ".join(errors), "danger")
             return redirect(url_for("clients_page", q=client.username))
         db.session.add(
             AnalystNote(
                 client_user_id=client.id,
                 analyst_user_id=session["user_id"],
-                note_text=note_text,
+                **payload,
             )
         )
         db.session.commit()
         flash("Client note saved.", "success")
         return redirect(url_for("clients_page", q=client.username))
+
+    @app.route("/analyst-notes", methods=["GET", "POST"])
+    def analyst_notes_page():
+        context_redirect = require_client_context_redirect()
+        if context_redirect:
+            return context_redirect
+        if not staff_required():
+            flash("Admin / Analyst access required.", "warning")
+            return redirect(url_for("dashboard"))
+
+        client = selected_client()
+        if not client:
+            flash("Choose a client portfolio before managing analyst notes.", "warning")
+            return redirect(url_for("clients_page"))
+        if request.method == "POST":
+            payload, errors = analyst_note_payload_from_form()
+            if errors:
+                flash(" ".join(errors), "danger")
+                return redirect(url_for("analyst_notes_page"))
+            db.session.add(
+                AnalystNote(
+                    client_user_id=client.id,
+                    analyst_user_id=session["user_id"],
+                    **payload,
+                )
+            )
+            db.session.commit()
+            flash("Analyst note saved.", "success")
+            return redirect(url_for("analyst_notes_page", category=payload["category"]))
+
+        category_filter = clean_text(request.args.get("category")) or "All"
+        priority_filter = clean_text(request.args.get("priority")) or "All"
+        status_filter = clean_text(request.args.get("status")) or "All"
+        if category_filter != "All" and category_filter not in ANALYST_NOTE_CATEGORIES:
+            category_filter = "All"
+        if priority_filter != "All" and priority_filter not in ANALYST_NOTE_PRIORITIES:
+            priority_filter = "All"
+        if status_filter != "All" and status_filter not in ANALYST_NOTE_STATUSES:
+            status_filter = "All"
+
+        notes_query = AnalystNote.query.filter_by(client_user_id=client.id)
+        if category_filter != "All":
+            notes_query = notes_query.filter(AnalystNote.category == category_filter)
+        if priority_filter != "All":
+            notes_query = notes_query.filter(AnalystNote.priority == priority_filter)
+        if status_filter != "All":
+            notes_query = notes_query.filter(AnalystNote.status == status_filter)
+
+        edit_id = request.args.get("edit", type=int)
+        editing_note = get_selected_client_note_or_404(edit_id) if edit_id else None
+        prefill_category = clean_text(request.args.get("prefill_category"))
+        prefill_section = clean_text(request.args.get("related_section"))
+        if prefill_category not in ANALYST_NOTE_CATEGORIES:
+            prefill_category = "General"
+
+        return render_template(
+            "analyst_notes.html",
+            page="analyst_notes",
+            client=client,
+            notes=notes_query.order_by(AnalystNote.created_at.desc()).all(),
+            editing_note=editing_note,
+            prefill_category=prefill_category,
+            prefill_section=prefill_section,
+            categories=ANALYST_NOTE_CATEGORIES,
+            priorities=ANALYST_NOTE_PRIORITIES,
+            statuses=ANALYST_NOTE_STATUSES,
+            category_filter=category_filter,
+            priority_filter=priority_filter,
+            status_filter=status_filter,
+        )
+
+    @app.route("/analyst-notes/<int:note_id>/edit", methods=["POST"])
+    def analyst_note_edit(note_id: int):
+        context_redirect = require_client_context_redirect()
+        if context_redirect:
+            return context_redirect
+        if not staff_required():
+            flash("Admin / Analyst access required.", "warning")
+            return redirect(url_for("dashboard"))
+        note = get_selected_client_note_or_404(note_id)
+        payload, errors = analyst_note_payload_from_form()
+        if errors:
+            flash(" ".join(errors), "danger")
+            return redirect(url_for("analyst_notes_page", edit=note.id))
+        for key, value in payload.items():
+            setattr(note, key, value)
+        db.session.commit()
+        flash("Analyst note updated.", "success")
+        return redirect(url_for("analyst_notes_page"))
+
+    @app.route("/analyst-notes/<int:note_id>/delete", methods=["POST"])
+    def analyst_note_delete(note_id: int):
+        context_redirect = require_client_context_redirect()
+        if context_redirect:
+            return context_redirect
+        if not staff_required():
+            flash("Admin / Analyst access required.", "warning")
+            return redirect(url_for("dashboard"))
+        note = get_selected_client_note_or_404(note_id)
+        db.session.delete(note)
+        db.session.commit()
+        flash("Analyst note deleted.", "success")
+        return redirect(url_for("analyst_notes_page"))
 
     @app.route("/dashboard")
     def dashboard():
@@ -2191,7 +2718,13 @@ def register_routes(app: Flask) -> None:
         analyst_notes = []
         if session.get("role") == RoleService.CLIENT:
             qr_payload = feedback_qr_payload(session["user_id"])
-            analyst_notes = AnalystNote.query.filter_by(client_user_id=session["user_id"]).order_by(AnalystNote.created_at.desc()).limit(5).all()
+            analyst_notes = (
+                AnalystNote.query.filter_by(client_user_id=session["user_id"])
+                .filter(or_(AnalystNote.status.is_(None), AnalystNote.status != "Archived"))
+                .order_by(AnalystNote.created_at.desc())
+                .limit(5)
+                .all()
+            )
         elif client_id is not None:
             analyst_notes = AnalystNote.query.filter_by(client_user_id=client_id).order_by(AnalystNote.created_at.desc()).limit(5).all()
         return render_template(
@@ -2378,6 +2911,12 @@ def register_routes(app: Flask) -> None:
             if item_id_raw:
                 flash("New inventory items cannot include an existing item ID.", "danger")
                 return redirect(url_for("inventory_add"))
+            image_filename, image_errors = save_inventory_image_upload()
+            if image_errors:
+                flash(" ".join(image_errors), "danger")
+                return redirect(url_for("inventory_add"))
+            if image_filename:
+                payload["image_filename"] = image_filename
             db.session.add(InventoryItem(**payload))
             db.session.commit()
             flash("Inventory item added.", "success")
@@ -2402,6 +2941,12 @@ def register_routes(app: Flask) -> None:
             if errors:
                 flash(" ".join(errors), "danger")
                 return redirect(url_for("inventory_edit", item_id=item.id))
+            image_filename, image_errors = save_inventory_image_upload()
+            if image_errors:
+                flash(" ".join(image_errors), "danger")
+                return redirect(url_for("inventory_edit", item_id=item.id))
+            if image_filename:
+                payload["image_filename"] = image_filename
             for key, value in payload.items():
                 setattr(item, key, value)
             db.session.commit()
@@ -2567,6 +3112,9 @@ def register_routes(app: Flask) -> None:
         context_redirect = require_client_context_redirect()
         if context_redirect:
             return context_redirect
+        premium_redirect = require_premium_access("Excel export")
+        if premium_redirect:
+            return premium_redirect
         records = records_for_export(scoped_query(Sale), Sale.sale_date)
         rows = [
             {
@@ -2589,6 +3137,9 @@ def register_routes(app: Flask) -> None:
         context_redirect = require_client_context_redirect()
         if context_redirect:
             return context_redirect
+        premium_redirect = require_premium_access("Excel export")
+        if premium_redirect:
+            return premium_redirect
         records = records_for_export(scoped_query(Expense), Expense.expense_date)
         rows = [
             {
@@ -2608,6 +3159,9 @@ def register_routes(app: Flask) -> None:
         context_redirect = require_client_context_redirect()
         if context_redirect:
             return context_redirect
+        premium_redirect = require_premium_access("Excel export")
+        if premium_redirect:
+            return premium_redirect
         records = records_for_export(scoped_query(MarketingCampaign), MarketingCampaign.campaign_date)
         rows = [
             {
@@ -2630,6 +3184,9 @@ def register_routes(app: Flask) -> None:
         context_redirect = require_client_context_redirect()
         if context_redirect:
             return context_redirect
+        premium_redirect = require_premium_access("Excel export")
+        if premium_redirect:
+            return premium_redirect
         search = clean_text(request.args.get("search"))
         category = clean_text(request.args.get("category")) or "All"
         sort_by = clean_text(request.args.get("sort_by")) or "item_name"
@@ -2658,6 +3215,9 @@ def register_routes(app: Flask) -> None:
         context_redirect = require_client_context_redirect()
         if context_redirect:
             return context_redirect
+        premium_redirect = require_premium_access("Excel export")
+        if premium_redirect:
+            return premium_redirect
         selected_source = clean_text(request.args.get("source")) or "All"
         query = scoped_query(CustomerReview)
         if selected_source != "All":
@@ -2691,6 +3251,9 @@ def register_routes(app: Flask) -> None:
         context_redirect = require_client_context_redirect()
         if context_redirect:
             return context_redirect
+        premium_redirect = require_premium_access("Excel export")
+        if premium_redirect:
+            return premium_redirect
         search_term = clean_text(request.args.get("q"))
         category_filter = clean_text(request.args.get("category"))
         export_mode = clean_text(request.args.get("mode")) or "active"
@@ -2744,6 +3307,9 @@ def register_routes(app: Flask) -> None:
         context_redirect = require_client_context_redirect()
         if context_redirect:
             return context_redirect
+        premium_redirect = require_premium_access("Excel export")
+        if premium_redirect:
+            return premium_redirect
         item_id = request.args.get("item_id", type=int)
         query = scoped_stock_movement_query()
         if item_id:
@@ -3311,9 +3877,9 @@ def register_routes(app: Flask) -> None:
         context_redirect = require_client_context_redirect()
         if context_redirect:
             return context_redirect
-        if not staff_required():
-            flash("Admin / Analyst access required.", "warning")
-            return redirect(url_for("dashboard"))
+        premium_redirect = require_premium_access("Forecast")
+        if premium_redirect:
+            return premium_redirect
         client_id = current_client_id()
         forecast_generation = generate_revenue_forecast_if_needed(client_id)
         if not forecast_generation["generated"]:
@@ -3327,9 +3893,9 @@ def register_routes(app: Flask) -> None:
         context_redirect = require_client_context_redirect()
         if context_redirect:
             return context_redirect
-        if not staff_required():
-            flash("Admin / Analyst access required.", "warning")
-            return redirect(url_for("dashboard"))
+        premium_redirect = require_premium_access("ROI analysis")
+        if premium_redirect:
+            return premium_redirect
         metrics = compute_dashboard_metrics(current_client_id())
         roi_rows, roi_table_filter = build_campaign_roi_table(scoped_query(MarketingCampaign))
         return render_template(
@@ -3345,16 +3911,57 @@ def register_routes(app: Flask) -> None:
         context_redirect = require_client_context_redirect()
         if context_redirect:
             return context_redirect
-        if not staff_required():
-            flash("Admin / Analyst access required.", "warning")
-            return redirect(url_for("dashboard"))
+        premium_redirect = require_premium_access("Sentiment / Brand Intelligence")
+        if premium_redirect:
+            return premium_redirect
         metrics = compute_dashboard_metrics(current_client_id())
-        selected_source = request.args.get("source", "All")
-        selected_period = clean_text(request.args.get("period")) or "month"
+        if clean_text(request.args.get("reset")):
+            session.pop(sentiment_filter_session_key(), None)
+            return redirect(url_for("sentiment_page"))
+
+        has_filter_args = any(key in request.args for key in {"source", "period", "start_date", "end_date", "mode"})
+        filter_state = {
+            "source": clean_text(request.args.get("source")) or "All",
+            "period": clean_text(request.args.get("period")) or "month",
+            "start_date": clean_text(request.args.get("start_date")),
+            "end_date": clean_text(request.args.get("end_date")),
+            "mode": clean_text(request.args.get("mode")),
+        } if has_filter_args else load_sentiment_filter()
+
+        selected_source = clean_text(filter_state.get("source")) or "All"
+        if selected_source != "All" and selected_source not in REVIEW_SOURCES:
+            selected_source = "All"
+        selected_period = clean_text(filter_state.get("period")) or "month"
         if selected_period not in {"day", "week", "month"}:
             selected_period = "month"
+        filter_mode = clean_text(filter_state.get("mode")) or "period"
+        custom_start_raw = clean_text(filter_state.get("start_date"))
+        custom_end_raw = clean_text(filter_state.get("end_date"))
+        custom_start = None
+        custom_end = None
+        custom_range_active = False
+        custom_range_error = None
+        if filter_mode == "custom" or (has_filter_args and (custom_start_raw or custom_end_raw)):
+            if not (custom_start_raw and custom_end_raw):
+                custom_range_error = "Choose both start date and end date for a custom sentiment range."
+            else:
+                custom_start_res = parse_date_field(custom_start_raw, "Start date", required=True)
+                custom_end_res = parse_date_field(custom_end_raw, "End date", required=True)
+                errors = extract_route_errors(custom_start_res, custom_end_res)
+                if errors:
+                    custom_range_error = " ".join(errors)
+                elif custom_start_res[0] > custom_end_res[0]:
+                    custom_range_error = "Start date must be before or equal to end date."
+                else:
+                    custom_start = custom_start_res[0]
+                    custom_end = custom_end_res[0]
+                    custom_range_active = True
         today = date.today()
-        if selected_period == "day":
+        if custom_range_active:
+            period_start = custom_start
+            period_end = custom_end
+            period_label = "Custom Range"
+        elif selected_period == "day":
             period_start = today
             period_end = today
             period_label = "Today"
@@ -3365,25 +3972,25 @@ def register_routes(app: Flask) -> None:
         else:
             period_start, period_end = month_bounds(today)
             period_label = "This Month"
+        if custom_range_error:
+            flash(custom_range_error, "warning")
+        elif has_filter_args:
+            save_sentiment_filter(
+                {
+                    "source": selected_source,
+                    "period": selected_period,
+                    "start_date": period_start.isoformat(),
+                    "end_date": period_end.isoformat(),
+                    "mode": "custom" if custom_range_active else "period",
+                }
+            )
         base_reviews = scoped_query(CustomerReview)
         if selected_source != "All":
             base_reviews = base_reviews.filter(CustomerReview.source == selected_source)
         base_reviews = base_reviews.filter(CustomerReview.review_date.between(period_start, period_end))
         reviews = base_reviews.order_by(CustomerReview.review_date.desc()).all()
         filtered_metrics = dict(metrics)
-        sentiment_counts = {
-            "positive": sum(1 for r in reviews if r.sentiment_label == "positive"),
-            "neutral": sum(1 for r in reviews if r.sentiment_label == "neutral"),
-            "negative": sum(1 for r in reviews if r.sentiment_label == "negative"),
-        }
-        sentiment_total = sum(sentiment_counts.values())
-        sentiment_percentages = {
-            key: round((value / sentiment_total) * 100) if sentiment_total else 0
-            for key, value in sentiment_counts.items()
-        }
-        filtered_metrics["sentiment_counts"] = sentiment_counts
-        filtered_metrics["sentiment_total"] = sentiment_total
-        filtered_metrics["sentiment_percentages"] = sentiment_percentages
+        filtered_metrics.update(sentiment_summary_from_reviews(reviews))
         intelligence = build_sentiment_intelligence(filtered_metrics, reviews=reviews)
         return render_template(
             "sentiment.html",
@@ -3393,6 +4000,9 @@ def register_routes(app: Flask) -> None:
             review_sources=REVIEW_SOURCES,
             selected_source=selected_source,
             selected_period=selected_period,
+            custom_range_active=custom_range_active,
+            filter_start_date=period_start.isoformat(),
+            filter_end_date=period_end.isoformat(),
             period_label=period_label,
             period_start=period_start,
             period_end=period_end,
@@ -3403,11 +4013,23 @@ def register_routes(app: Flask) -> None:
         context_redirect = require_client_context_redirect()
         if context_redirect:
             return context_redirect
-        if not staff_required():
-            flash("Admin / Analyst access required.", "warning")
-            return redirect(url_for("dashboard"))
-        metrics = compute_dashboard_metrics(current_client_id())
-        return render_template("reports.html", page="reports", metrics=metrics)
+        premium_redirect = require_premium_access("Reports")
+        if premium_redirect:
+            return premium_redirect
+        client_id = current_client_id()
+        metrics = compute_dashboard_metrics(client_id)
+        notes_query = AnalystNote.query.filter_by(client_user_id=client_id)
+        if client_required():
+            notes_query = notes_query.filter(or_(AnalystNote.status.is_(None), AnalystNote.status != "Archived"))
+        analyst_notes = notes_query.order_by(AnalystNote.created_at.desc()).all()
+        return render_template(
+            "reports.html",
+            page="reports",
+            metrics=metrics,
+            analyst_notes=analyst_notes,
+            is_reports_client_view=client_required(),
+            show_full_reports=can_access_premium_features(),
+        )
 
 
 app = create_app()

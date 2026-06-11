@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="plans-page">
+  <div class="page-header">
+    <div>
+      <p class="eyebrow">Settings</p>
+      <h2>Plans &amp; Features</h2>
+      <p class="text-muted mb-0">Review package access and compare the features available to your business.</p>
+    </div>
+  </div>
+
+  <section class="plans-current-plan" aria-label="Current package">
+    <div class="plans-current-plan__icon"><i class="bi bi-patch-check"></i></div>
+    <div>
+      <span class="plans-current-plan__label">
+        {{ plan_user.full_name ~ "'s current package" if plan_user and not is_client_account else "Current package" }}
+      </span>
+      {% if active_package %}
+      <div class="plans-current-plan__title">
+        <strong>{{ active_package }}</strong>
+        <span class="package-badge package-badge--{{ active_package|lower }}">{{ active_package }}</span>
+      </div>
+      {% if active_package == 'Premium' %}
+      <p>Premium plan active.</p>
+      {% elif is_client_account %}
+      <p>Contact your consultant to upgrade to Premium.</p>
+      {% else %}
+      <p>Standard plan active for the selected client.</p>
+      {% endif %}
+      {% else %}
+      <div class="plans-current-plan__title">
+        <strong>Consultant access</strong>
+      </div>
+      <p>Select a client portfolio to view and compare that client's active package. Consultant/Admin accounts retain access to all modules.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <div class="plans-grid">
+    <article class="plan-card {% if active_package == 'Standard' %}plan-card--active{% endif %}">
+      <header class="plan-card__header">
+        <div>
+          <span class="plan-card__name">Standard</span>
+          <div class="plan-card__price"><strong>RM49</strong><span>/month</span></div>
+        </div>
+        {% if active_package == 'Standard' %}
+        <span class="plan-card__active-label"><i class="bi bi-check-circle-fill"></i> Active package</span>
+        {% endif %}
+      </header>
+
+      <div class="plan-feature-group">
+        <h3>Included</h3>
+        <ul class="plan-feature-list">
+          <li><i class="bi bi-check-circle-fill"></i><span>Dashboard (Basic)</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Revenue Trend</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Cash Flow Trend</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Revenue by Channel</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Inventory Management</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Low Stock Alerts</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Customer Reviews</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Basic Sentiment Distribution</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Menu Engineering Matrix</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Consultant Recommendations</span></li>
+        </ul>
+      </div>
+
+      <div class="plan-feature-group plan-feature-group--excluded">
+        <h3>Not Included</h3>
+        <ul class="plan-feature-list">
+          <li><i class="bi bi-x-circle"></i><span>Strategic Actions</span></li>
+          <li><i class="bi bi-x-circle"></i><span>Forecast Revenue</span></li>
+          <li><i class="bi bi-x-circle"></i><span>Forecast Cash Flow</span></li>
+          <li><i class="bi bi-x-circle"></i><span>ROI Analysis</span></li>
+          <li><i class="bi bi-x-circle"></i><span>Monthly Revenue Trend</span></li>
+          <li><i class="bi bi-x-circle"></i><span>Advanced Sentiment Analytics</span></li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="plan-card plan-card--premium {% if active_package == 'Premium' %}plan-card--active{% endif %}">
+      <header class="plan-card__header">
+        <div>
+          <span class="plan-card__name">Premium</span>
+          <div class="plan-card__price"><strong>RM129</strong><span>/month</span></div>
+        </div>
+        {% if active_package == 'Premium' %}
+        <span class="plan-card__active-label"><i class="bi bi-check-circle-fill"></i> Active package</span>
+        {% endif %}
+      </header>
+
+      <div class="plan-feature-group">
+        <h3>Included</h3>
+        <ul class="plan-feature-list">
+          <li><i class="bi bi-check-circle-fill"></i><span>Everything in Standard</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Monthly Revenue Trend</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Forecast Revenue</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Forecast Cash Flow</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>ROI Analysis</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Advanced Sentiment Intelligence</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Menu Engineering Strategic Actions</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Reports &amp; Excel Export</span></li>
+          <li><i class="bi bi-check-circle-fill"></i><span>Priority Consultant Support</span></li>
+        </ul>
+      </div>
+
+      {% if active_package == 'Premium' %}
+      <div class="plan-card__notice"><i class="bi bi-patch-check-fill"></i> Premium plan active.</div>
+      {% elif is_client_account %}
+      <div class="plan-card__notice plan-card__notice--muted"><i class="bi bi-chat-dots"></i> Contact your consultant to upgrade to Premium.</div>
+      {% endif %}
+    </article>
+  </div>
+
+  <p class="plans-information-note">
+    <i class="bi bi-info-circle"></i>
+    This page is for package information only. Package changes are managed by your consultant.
+  </p>
+</div>
+{% endblock %}

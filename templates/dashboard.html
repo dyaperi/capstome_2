@@ -56,6 +56,10 @@
   </div>
 </div>
 
+{% set note_category = 'Financial' %}
+{% set note_section = 'Dashboard KPI Summary' %}
+{% include '_note_action.html' %}
+
 <div class="row g-3 mb-3">
   <div class="col-lg-4">
     <section class="section-card h-100">
@@ -80,6 +84,9 @@
           </div>
         </div>
       </div>
+      {% set note_category = 'Inventory' %}
+      {% set note_section = 'Inventory Summary' %}
+      {% include '_note_action.html' %}
     </section>
   </div>
   <div class="col-lg-8">
@@ -100,6 +107,9 @@
         <div class="empty-state">No low-stock inventory alerts right now.</div>
         {% endfor %}
       </div>
+      {% set note_category = 'Inventory' %}
+      {% set note_section = 'Low-stock Items' %}
+      {% include '_note_action.html' %}
     </section>
   </div>
 </div>
@@ -117,10 +127,14 @@
       {% for note in analyst_notes %}
       <div class="action-list__item mb-2">
         <div class="d-flex justify-content-between gap-2">
-          <strong>{{ note.analyst_user.full_name if note.analyst_user else 'Admin / Analyst' }}</strong>
+          <div>
+            <strong>{{ note.title or 'Analyst Recommendation' }}</strong>
+            <div class="text-muted small">{{ note.category or 'General' }}{% if note.related_section %} / {{ note.related_section }}{% endif %}</div>
+          </div>
           <span class="text-muted small">{{ note.created_at.strftime('%Y-%m-%d') if note.created_at else '' }}</span>
         </div>
         <p class="mb-0">{{ note.note_text }}</p>
+        <div class="text-muted small mt-1">By {{ note.analyst_user.full_name if note.analyst_user else 'Admin / Analyst' }}</div>
       </div>
       {% else %}
       <div class="empty-state">No analyst recommendations yet. Check back after your next review.</div>
@@ -130,14 +144,28 @@
   <div class="col-lg-4">
     <section class="section-card profile-summary-card h-100" id="account">
       <div class="profile-summary-card__top">
-        <span class="profile-summary-card__avatar">{{ session.get('full_name', 'U')[:1]|upper }}</span>
-        <div>
-          <span>Current Account</span>
+        <span class="profile-summary-card__avatar">
+          {% if current_account and current_account.profile_image %}
+          <img src="{{ url_for('static', filename='uploads/profiles/' ~ current_account.profile_image) }}" alt="{{ session.get('full_name') }}">
+          {% else %}
+          {{ session.get('full_name', 'U')[:1]|upper }}
+          {% endif %}
+        </span>
+        <div class="profile-summary-card__identity">
+          <span class="profile-summary-card__label">Current Account</span>
           <strong>{{ session.get('full_name') }}</strong>
-          <small>Client · Active</small>
+          {% set account_status = current_account.status|default('active') if current_account else 'active' %}
+          <div class="profile-summary-card__meta">
+            <span><i class="bi bi-person-badge"></i> Client</span>
+            <span><i class="bi bi-circle-fill"></i> {{ account_status|title }}</span>
+            <span class="package-badge package-badge--{{ current_account_package|lower }}">{{ current_account_package }}</span>
+          </div>
         </div>
       </div>
-      <a class="btn btn-outline-primary w-100" href="{{ url_for('settings_page') }}">Manage Settings</a>
+      <div class="profile-summary-card__actions">
+        <a class="btn btn-outline-primary" href="{{ url_for('profile_page') }}"><i class="bi bi-person-badge"></i> Preview Profile</a>
+        <a class="btn btn-primary" href="{{ url_for('settings_profile_page') }}"><i class="bi bi-gear"></i> Manage Settings</a>
+      </div>
       {% if qr_payload %}
       <hr>
       <a class="btn btn-outline-primary w-100" href="{{ qr_payload.feedback_url }}" target="_blank" rel="noopener">Open Customer Feedback Form</a>
@@ -159,6 +187,9 @@
       <div class="financial-line-chart-container">
         <canvas id="revenueChart"></canvas>
       </div>
+      {% set note_category = 'Financial' %}
+      {% set note_section = 'Revenue Trend' %}
+      {% include '_note_action.html' %}
     </section>
   </div>
   <div class="col-xl-6">
@@ -172,6 +203,9 @@
       <div class="financial-line-chart-container">
         <canvas id="cashChart"></canvas>
       </div>
+      {% set note_category = 'Financial' %}
+      {% set note_section = 'Cash Flow Trend' %}
+      {% include '_note_action.html' %}
     </section>
   </div>
   <div class="col-xl-6">
@@ -197,6 +231,9 @@
           {% endfor %}
         </div>
       </div>
+      {% set note_category = 'Marketing' %}
+      {% set note_section = 'Revenue by Channel' %}
+      {% include '_note_action.html' %}
     </section>
   </div>
   <div class="col-xl-6">
@@ -210,22 +247,113 @@
       <div class="sentiment-doughnut-wrap sentiment-doughnut-wrap--dashboard">
         <canvas id="sentimentPie"></canvas>
       </div>
+      {% set note_category = 'Sentiment' %}
+      {% set note_section = 'Sentiment Distribution' %}
+      {% include '_note_action.html' %}
     </section>
   </div>
+  {% if can_access_premium_features %}
   <div class="col-12">
     <section class="section-card chart-card">
       <div class="section-card__header">
         <div>
           <h5>Revenue vs Sentiment</h5>
-          <p>Compare sentiment index with revenue movement using existing analytics data.</p>
+          <p>Advanced comparison of sentiment index with revenue movement.</p>
         </div>
+        <span class="package-badge package-badge--premium">Premium</span>
       </div>
       <div class="sentiment-sales-chart-wrap">
         <canvas id="sentimentSales"></canvas>
       </div>
+      {% set note_category = 'Sentiment' %}
+      {% set note_section = 'Revenue vs Sentiment' %}
+      {% include '_note_action.html' %}
+    </section>
+  </div>
+  {% endif %}
+</div>
+
+{% if can_access_premium_features %}
+<div class="row g-3 mb-3">
+  <div class="col-xl-6">
+    <section class="section-card chart-card h-100 premium-dashboard-section">
+      <div class="section-card__header">
+        <div>
+          <h5>Monthly Revenue Trend</h5>
+          <p>Premium view of gross revenue, expenses, and net income by month.</p>
+        </div>
+        <span class="package-badge package-badge--premium">Premium</span>
+      </div>
+      <div class="monthly-revenue-chart-container">
+        <canvas id="monthlyRevenueTrendChart"></canvas>
+      </div>
+      {% set note_category = 'Financial' %}
+      {% set note_section = 'Monthly Revenue Trend' %}
+      {% include '_note_action.html' %}
+    </section>
+  </div>
+  <div class="col-xl-6">
+    <section class="section-card chart-card h-100 premium-dashboard-section">
+      <div class="section-card__header">
+        <div>
+          <h5>Sales and ROI</h5>
+          <p>Premium comparison of monthly sales and campaign ROI.</p>
+        </div>
+        <span class="package-badge package-badge--premium">Premium</span>
+      </div>
+      <div class="roi-combo-chart-container">
+        <canvas id="salesRoiChart"></canvas>
+      </div>
+      {% set note_category = 'ROI' %}
+      {% set note_section = 'Dashboard Sales and ROI' %}
+      {% include '_note_action.html' %}
+    </section>
+  </div>
+  <div class="col-xl-6">
+    <section class="section-card chart-card h-100 premium-dashboard-section">
+      <div class="section-card__header">
+        <div>
+          <h5>Forecast Revenue</h5>
+          <p>Premium projection of upcoming revenue.</p>
+        </div>
+        <span class="package-badge package-badge--premium">Premium</span>
+      </div>
+      <div class="financial-line-chart-container">
+        <canvas id="forecastRevenue"></canvas>
+      </div>
+      {% set note_category = 'Forecast' %}
+      {% set note_section = 'Dashboard Forecast Revenue' %}
+      {% include '_note_action.html' %}
+    </section>
+  </div>
+  <div class="col-xl-6">
+    <section class="section-card chart-card h-100 premium-dashboard-section">
+      <div class="section-card__header">
+        <div>
+          <h5>Forecast Cash Flow</h5>
+          <p>Premium projection of cash movement after expected expenses.</p>
+        </div>
+        <span class="package-badge package-badge--premium">Premium</span>
+      </div>
+      <div class="financial-line-chart-container">
+        <canvas id="forecastCash"></canvas>
+      </div>
+      {% set note_category = 'Forecast' %}
+      {% set note_section = 'Dashboard Forecast Cash Flow' %}
+      {% include '_note_action.html' %}
     </section>
   </div>
 </div>
+{% elif is_client_user %}
+<section class="section-card premium-locked-card">
+  <div class="premium-locked-card__icon"><i class="bi bi-lock"></i></div>
+  <div>
+    <span class="package-badge package-badge--standard">Standard</span>
+    <h5>Premium feature. Upgrade to Premium to unlock advanced insights.</h5>
+    <p>Premium adds monthly revenue trends, forecasts, ROI charts, brand intelligence, full reports, and Excel exports.</p>
+  </div>
+</section>
+{% endif %}
 
 <script id="chart-data" type="application/json">{{ metrics|tojson }}</script>
 {% endblock %}

@@ -3,6 +3,7 @@ USE fnb_insights;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS activity_logs;
 DROP TABLE IF EXISTS analyst_notes;
 DROP TABLE IF EXISTS forecast_results;
 DROP TABLE IF EXISTS stock_movements;
@@ -28,6 +29,7 @@ CREATE TABLE users (
   business_type VARCHAR(100) NULL,
   subscription_type VARCHAR(80) NULL,
   preferred_dashboard_period VARCHAR(30) DEFAULT 'month',
+  profile_image VARCHAR(255) NULL,
   last_login_at DATETIME NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -48,6 +50,21 @@ INSERT INTO users (username, password, full_name, role, status) VALUES
     'client',
     'active'
   );
+
+CREATE TABLE activity_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  activity_type VARCHAR(50) NOT NULL,
+  description VARCHAR(255) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_activity_logs_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+
+  INDEX idx_activity_logs_user_created (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE menu_items (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -176,6 +193,7 @@ CREATE TABLE inventory_items (
   minimum_stock DECIMAL(12,2) NOT NULL DEFAULT 0,
   cost_per_unit DECIMAL(10,2) NOT NULL DEFAULT 0,
   supplier_name VARCHAR(150),
+  image_filename VARCHAR(255),
   last_restock_date DATE,
   status VARCHAR(20) DEFAULT 'active',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -206,8 +224,14 @@ CREATE TABLE analyst_notes (
   id INT AUTO_INCREMENT PRIMARY KEY,
   client_user_id INT NOT NULL,
   analyst_user_id INT NOT NULL,
+  title VARCHAR(160),
+  category VARCHAR(80) DEFAULT 'General',
+  priority VARCHAR(20) DEFAULT 'Medium',
+  related_section VARCHAR(120),
+  status VARCHAR(20) DEFAULT 'Open',
   note_text TEXT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
   CONSTRAINT fk_analyst_notes_client
     FOREIGN KEY (client_user_id) REFERENCES users(id)

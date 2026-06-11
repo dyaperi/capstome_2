@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Analyst Notes</p>
+    <h2>{{ client.full_name }}</h2>
+    <p class="text-muted mb-0">Collect recommendations, follow-up items, and analysis notes for the current portfolio.</p>
+  </div>
+</div>
+
+<div class="analyst-notes-layout">
+  <section class="section-card analyst-note-form-card">
+    <div class="section-card__header">
+      <div>
+        <h5>{{ 'Edit Note' if editing_note else 'Add Note' }}</h5>
+        <p>{{ 'Update this contextual recommendation.' if editing_note else 'Create a note connected to a dashboard, report, or analysis section.' }}</p>
+      </div>
+    </div>
+    <form method="post" class="analyst-note-form" action="{{ url_for('analyst_note_edit', note_id=editing_note.id) if editing_note else url_for('analyst_notes_page') }}">
+      <div>
+        <label class="form-label">Title</label>
+        <input class="form-control" name="title" value="{{ editing_note.title if editing_note else '' }}" placeholder="Recommendation title">
+      </div>
+      <div>
+        <label class="form-label">Category / Module</label>
+        <select class="form-select" name="category">
+          {% set selected_category = (editing_note.category if editing_note else prefill_category) or 'General' %}
+          {% for category in categories %}
+          <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Priority</label>
+        <select class="form-select" name="priority">
+          {% set selected_priority = (editing_note.priority if editing_note else 'Medium') or 'Medium' %}
+          {% for priority in priorities %}
+          <option value="{{ priority }}" {% if selected_priority == priority %}selected{% endif %}>{{ priority }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Status</label>
+        <select class="form-select" name="status">
+          {% set selected_status = (editing_note.status if editing_note else 'Open') or 'Open' %}
+          {% for status in statuses %}
+          <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="analyst-note-form__wide">
+        <label class="form-label">Related section</label>
+        <input class="form-control" name="related_section" value="{{ editing_note.related_section if editing_note else prefill_section }}" placeholder="Revenue Trend, Forecast Cash Flow, Inventory Low Stock">
+      </div>
+      <div class="analyst-note-form__wide">
+        <label class="form-label">Recommendation text</label>
+        <textarea class="form-control" name="note_text" rows="5" required>{{ editing_note.note_text if editing_note else '' }}</textarea>
+      </div>
+      <div class="analyst-note-form__actions">
+        {% if editing_note %}
+        <a class="btn btn-outline-secondary" href="{{ url_for('analyst_notes_page') }}">Cancel Edit</a>
+        {% endif %}
+        <button class="btn btn-primary" type="submit">{{ 'Update Note' if editing_note else 'Save Note' }}</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="section-card analyst-note-list-card">
+    <div class="section-card__header">
+      <div>
+        <h5>Portfolio Notes</h5>
+        <p>{{ notes|length }} note{{ '' if notes|length == 1 else 's' }} shown for this filter.</p>
+      </div>
+    </div>
+    <form method="get" class="analyst-note-filter">
+      <select class="form-select" name="category" aria-label="Filter by category">
+        <option value="All" {% if category_filter == 'All' %}selected{% endif %}>All categories</option>
+        {% for category in categories %}
+        <option value="{{ category }}" {% if category_filter == category %}selected{% endif %}>{{ category }}</option>
+        {% endfor %}
+      </select>
+      <select class="form-select" name="priority" aria-label="Filter by priority">
+        <option value="All" {% if priority_filter == 'All' %}selected{% endif %}>All priorities</option>
+        {% for priority in priorities %}
+        <option value="{{ priority }}" {% if priority_filter == priority %}selected{% endif %}>{{ priority }}</option>
+        {% endfor %}
+      </select>
+      <select class="form-select" name="status" aria-label="Filter by status">
+        <option value="All" {% if status_filter == 'All' %}selected{% endif %}>All statuses</option>
+        {% for status in statuses %}
+        <option value="{{ status }}" {% if status_filter == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-outline-primary" type="submit">Apply</button>
+    </form>
+
+    <div class="analyst-note-list">
+      {% for note in notes %}
+      <article class="analyst-note-card">
+        <div class="analyst-note-card__header">
+          <div>
+            <span>{{ note.category or 'General' }}{% if note.related_section %} / {{ note.related_section }}{% endif %}</span>
+            <h5>{{ note.title or 'Analyst Recommendation' }}</h5>
+          </div>
+          <div class="analyst-note-badges">
+            <span class="analyst-note-priority analyst-note-priority--{{ (note.priority or 'Medium')|lower }}">{{ note.priority or 'Medium' }}</span>
+            <span class="analyst-note-status">{{ note.status or 'Open' }}</span>
+          </div>
+        </div>
+        <p>{{ note.note_text }}</p>
+        <div class="analyst-note-card__meta">
+          <span>{{ note.analyst_user.full_name if note.analyst_user else 'Admin / Analyst' }}</span>
+          <span>{{ note.created_at.strftime('%Y-%m-%d %H:%M') if note.created_at else '' }}</span>
+        </div>
+        <div class="analyst-note-card__actions">
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('analyst_notes_page', edit=note.id) }}">Edit</a>
+          <form method="post" action="{{ url_for('analyst_note_delete', note_id=note.id) }}" onsubmit="return confirm('Delete this analyst note?');">
+            <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+          </form>
+        </div>
+      </article>
+      {% else %}
+      <div class="empty-state">No analyst notes match the current filters. Add the first recommendation for this client portfolio.</div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

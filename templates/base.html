@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="{% block body_class %}{% endblock %}">
+{% set settings_pages = ['settings_profile', 'settings_security', 'settings_plans'] %}
 {% if session.get('user_id') %}
 <div class="app-shell">
   <aside class="app-sidebar sidebar">
@@ -66,6 +67,26 @@
         <i class="bi bi-star"></i><span>Customer Reviews</span>
       </a>
 
+      {% if is_client_user %}
+      <a class="nav-link" href="{{ url_for('dashboard') }}#recommendations">
+        <i class="bi bi-journal-text"></i><span>Recommendations</span>
+      </a>
+      {% if can_access_premium_features %}
+      <a class="nav-link {% if page=='forecast' %}active{% endif %}" href="{{ url_for('forecast_page') }}">
+        <i class="bi bi-activity"></i><span>Forecast</span>
+      </a>
+      <a class="nav-link {% if page=='roi' %}active{% endif %}" href="{{ url_for('roi_page') }}">
+        <i class="bi bi-percent"></i><span>ROI</span>
+      </a>
+      <a class="nav-link {% if page=='sentiment' %}active{% endif %}" href="{{ url_for('sentiment_page') }}">
+        <i class="bi bi-emoji-smile"></i><span>Brand Intelligence</span>
+      </a>
+      <a class="nav-link {% if page=='reports' %}active{% endif %}" href="{{ url_for('reports_page') }}">
+        <i class="bi bi-file-earmark-text"></i><span>Reports</span>
+      </a>
+      {% endif %}
+      {% endif %}
+
       {% if is_staff_user %}
       <a class="nav-link {% if page=='analytics' %}active{% endif %}" href="{{ url_for('analytics_page') }}">
         <i class="bi bi-bar-chart"></i><span>Analytics</span>
@@ -82,7 +103,7 @@
       <a class="nav-link {% if page=='reports' %}active{% endif %}" href="{{ url_for('reports_page') }}">
         <i class="bi bi-file-earmark-text"></i><span>Reports</span>
       </a>
-      <a class="nav-link" href="{{ url_for('clients_page') }}">
+      <a class="nav-link {% if page=='analyst_notes' %}active{% endif %}" href="{{ url_for('analyst_notes_page') }}">
         <i class="bi bi-journal-text"></i><span>Analyst Notes</span>
       </a>
       {% endif %}
@@ -93,9 +114,27 @@
       {% endif %}
 
       <div class="sidebar-divider"></div>
-      <a class="nav-link {% if page=='settings' %}active{% endif %}" href="{{ url_for('settings_page') }}">
-        <i class="bi bi-gear"></i><span>Settings</span>
-      </a>
+      {% set settings_active = page in settings_pages %}
+      <button
+        type="button"
+        class="nav-link nav-parent-toggle {% if settings_active %}active expanded{% endif %}"
+        data-sidebar-toggle="settings-navigation"
+        aria-expanded="{{ 'true' if settings_active else 'false' }}"
+      >
+        <span class="nav-link__label"><i class="bi bi-gear"></i><span>Settings</span></span>
+        <i class="bi bi-chevron-down toggle-caret" aria-hidden="true"></i>
+      </button>
+      <div id="settings-navigation" class="sidebar-submenu {% if settings_active %}show{% endif %}">
+        <a class="nav-link sub-link {% if page=='settings_profile' %}active{% endif %}" href="{{ url_for('settings_profile_page') }}">
+          <i class="bi bi-person-gear"></i><span>Profile Settings</span>
+        </a>
+        <a class="nav-link sub-link {% if page=='settings_security' %}active{% endif %}" href="{{ url_for('settings_security_page') }}">
+          <i class="bi bi-shield-lock"></i><span>Account Security</span>
+        </a>
+        <a class="nav-link sub-link {% if page=='settings_plans' %}active{% endif %}" href="{{ url_for('plans_features_page') }}">
+          <i class="bi bi-card-checklist"></i><span>Plans &amp; Features</span>
+        </a>
+      </div>
     </nav>
   </aside>
 
@@ -112,14 +151,20 @@
       </div>
       <div class="topbar__actions">
         <button class="icon-button" type="button" aria-label="Notifications"><i class="bi bi-bell"></i></button>
-        <a class="icon-button {% if page=='settings' %}active{% endif %}" href="{{ url_for('settings_page') }}" aria-label="Settings"><i class="bi bi-gear"></i></a>
-        <div class="user-chip">
-          <span class="user-avatar">{{ session.get('full_name', 'U')[:1]|upper }}</span>
+        <a class="icon-button {% if page in settings_pages %}active{% endif %}" href="{{ url_for('settings_profile_page') }}" aria-label="Settings"><i class="bi bi-gear"></i></a>
+        <a class="user-chip {% if page=='profile' %}active{% endif %}" href="{{ url_for('profile_page') }}" aria-label="Preview profile">
+          <span class="user-avatar">
+            {% if current_account and current_account.profile_image %}
+            <img src="{{ url_for('static', filename='uploads/profiles/' ~ current_account.profile_image) }}" alt="">
+            {% else %}
+            {{ session.get('full_name', 'U')[:1]|upper }}
+            {% endif %}
+          </span>
           <span>
             <strong>{{ session.get('full_name') }}</strong>
             <small>{{ 'Admin / Analyst' if is_staff_user else 'Client' }}</small>
           </span>
-        </div>
+        </a>
         <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary btn-sm">Logout</a>
       </div>
     </header>
@@ -128,7 +173,7 @@
 {% else %}
 <main class="public-content">
 {% endif %}
-      {% if is_staff_user and selected_client and page not in ['clients', 'settings'] %}
+      {% if is_staff_user and selected_client and page not in (['clients', 'profile'] + settings_pages) %}
       <section class="current-portfolio-card" aria-label="Current portfolio">
         <span class="current-portfolio-card__avatar" aria-hidden="true">{{ selected_client.full_name[:1]|upper }}</span>
         <div class="current-portfolio-card__identity">
@@ -136,6 +181,7 @@
           <strong>{{ selected_client.full_name }}</strong>
           <div class="current-portfolio-card__meta">
             <span><i class="bi bi-person-badge" aria-hidden="true"></i> Client</span>
+            <span class="package-badge package-badge--{{ selected_client_package|lower }}">{{ selected_client_package }}</span>
             <span class="current-portfolio-card__status current-portfolio-card__status--{{ selected_client.status|default('active') }}">
               <i class="bi bi-circle-fill" aria-hidden="true"></i>
               {{ selected_client.status|default('active')|title }}

@@ -19,6 +19,9 @@
     <div class="financial-line-chart-container financial-line-chart-container--wide">
       <canvas id="forecastRevenue"></canvas>
     </div>
+    {% set note_category = 'Forecast' %}
+    {% set note_section = 'Forecast Revenue' %}
+    {% include '_note_action.html' %}
   </section>
 
   <section class="section-card chart-card">
@@ -31,6 +34,9 @@
     <div class="financial-line-chart-container financial-line-chart-container--wide">
       <canvas id="forecastCash"></canvas>
     </div>
+    {% set note_category = 'Forecast' %}
+    {% set note_section = 'Forecast Cash Flow' %}
+    {% include '_note_action.html' %}
   </section>
 </div>
 <script id="chart-data" type="application/json">{{ metrics|tojson }}</script>

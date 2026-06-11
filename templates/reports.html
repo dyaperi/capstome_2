@@ -1,15 +1,106 @@
 {% extends 'base.html' %}
 {% block content %}
-<h3>Summary Reports</h3>
-<div class="card card-body mb-3">
-  <h6>Profit & Loss Summary</h6>
-  <p>Total Revenue: RM {{ metrics.kpis.revenue }}</p>
-  <p>Total Cost: RM {{ metrics.kpis.cost }}</p>
-  <p>Estimated Profit: RM {{ metrics.kpis.profit }}</p>
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Reports</p>
+    <h2>Summary Reports</h2>
+    <p class="text-muted mb-0">
+      Summarize the selected business portfolio and review consultant recommendations.
+    </p>
+  </div>
+  {% if is_staff_user and selected_client %}
+  <a class="btn btn-outline-primary" href="{{ url_for('analyst_notes_page') }}">
+    <i class="bi bi-journal-plus"></i>
+    Manage Notes
+  </a>
+  {% endif %}
 </div>
-<div class="card card-body">
-  <h6>Menu Performance</h6>
-  <table class="table table-sm"><thead><tr><th>Item</th><th>Qty</th><th>Revenue</th><th>Profit</th></tr></thead>
-  <tbody>{% for row in metrics.menu_performance %}<tr><td>{{ row.item }}</td><td>{{ row.quantity }}</td><td>{{ row.revenue|round(2) }}</td><td>{{ row.profit|round(2) }}</td></tr>{% endfor %}</tbody></table>
+
+{% if show_full_reports %}
+<div class="row g-3 mb-3">
+  <div class="col-lg-4">
+    <section class="section-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Profit &amp; Loss Summary</h5>
+          <p>Core financial totals from the selected client portfolio.</p>
+        </div>
+      </div>
+      <div class="report-summary-list">
+        <div><span>Total Revenue</span><strong>RM {{ metrics.kpis.revenue }}</strong></div>
+        <div><span>Total Cost</span><strong>RM {{ metrics.kpis.cost }}</strong></div>
+        <div><span>Estimated Profit</span><strong>RM {{ metrics.kpis.profit }}</strong></div>
+        <div><span>ROI</span><strong>{{ metrics.kpis.roi }}%</strong></div>
+      </div>
+      {% set note_category = 'Financial' %}
+      {% set note_section = 'Reports Profit and Loss Summary' %}
+      {% include '_note_action.html' %}
+    </section>
+  </div>
+  <div class="col-lg-8">
+    <section class="section-card h-100">
+      <div class="section-card__header">
+        <div>
+          <h5>Menu Performance</h5>
+          <p>Sales quantity, revenue, and profit by menu item.</p>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle data-table mb-0">
+          <thead><tr><th>Item</th><th>Qty</th><th>Revenue</th><th>Profit</th></tr></thead>
+          <tbody>
+            {% for row in metrics.menu_performance %}
+            <tr>
+              <td>{{ row.item }}</td>
+              <td>{{ row.quantity }}</td>
+              <td>RM {{ row.revenue|round(2) }}</td>
+              <td>RM {{ row.profit|round(2) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4"><div class="empty-state">No menu performance data yet.</div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% set note_category = 'Menu Engineering' %}
+      {% set note_section = 'Reports Menu Performance' %}
+      {% include '_note_action.html' %}
+    </section>
+  </div>
 </div>
+{% endif %}
+
+<section class="section-card recommendations-panel">
+  <div class="section-card__header">
+    <div>
+      <h5>{{ 'Consultant Recommendations' if is_reports_client_view else 'Analyst Notes for This Portfolio' }}</h5>
+      <p>{{ 'These notes are read-only and belong only to your business account.' if is_reports_client_view else 'All saved notes are scoped to the currently opened client portfolio.' }}</p>
+    </div>
+    {% if is_staff_user and selected_client %}
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('analyst_notes_page') }}">Add Note</a>
+    {% endif %}
+  </div>
+  <div class="recommendation-list">
+    {% for note in analyst_notes %}
+    <article class="recommendation-card">
+      <div class="recommendation-card__header">
+        <div>
+          <span>{{ note.category or 'General' }}{% if note.related_section %} / {{ note.related_section }}{% endif %}</span>
+          <h5>{{ note.title or 'Analyst Recommendation' }}</h5>
+        </div>
+        <span class="analyst-note-priority analyst-note-priority--{{ (note.priority or 'Medium')|lower }}">{{ note.priority or 'Medium' }}</span>
+      </div>
+      <p>{{ note.note_text }}</p>
+      <div class="recommendation-card__meta">
+        <span>{{ note.analyst_user.full_name if note.analyst_user else 'Admin / Analyst' }}</span>
+        <span>{{ note.created_at.strftime('%Y-%m-%d') if note.created_at else '' }}</span>
+      </div>
+    </article>
+    {% else %}
+    <div class="empty-state">
+      {{ 'No analyst recommendations have been shared yet.' if is_reports_client_view else 'No notes have been added for this selected client yet.' }}
+    </div>
+    {% endfor %}
+  </div>
+</section>
 {% endblock %}

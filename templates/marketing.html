@@ -75,7 +75,9 @@
       <h5>{{ list_filter.title }}</h5>
       <p>{{ list_filter.summary }}</p>
     </div>
+    {% if can_access_premium_features %}
     <a class="btn btn-sm btn-outline-primary" href="{{ url_for('export_marketing_excel', view=list_filter.view, date=list_filter.date, start_date=list_filter.start_date, end_date=list_filter.end_date) }}">Export Excel</a>
+    {% endif %}
   </div>
   <div class="list-filter-panel">
     <div class="list-filter-actions" aria-label="Campaign list filters">

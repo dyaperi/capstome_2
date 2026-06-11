@@ -19,7 +19,7 @@
     </div>
   </div>
 
-  <form method="post" class="entry-form" action="{{ url_for('inventory_edit', item_id=editing.id) if editing else url_for('inventory_add') }}">
+  <form method="post" enctype="multipart/form-data" class="entry-form" action="{{ url_for('inventory_edit', item_id=editing.id) if editing else url_for('inventory_add') }}">
     <input type="hidden" name="inventory_item_id" value="{{ editing.id if editing else '' }}">
     <div class="row g-3">
       <div class="col-md-3">
@@ -61,6 +61,20 @@
           <option value="inactive" {% if editing and editing.status == 'inactive' %}selected{% endif %}>Inactive</option>
         </select>
       </div>
+      <div class="col-md-4">
+        <label class="form-label">Ingredient image <span class="optional-label">optional</span></label>
+        <input class="form-control" type="file" name="ingredient_image" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp">
+        <small class="form-help">PNG, JPG, JPEG, or WEBP. Maximum 2 MB.</small>
+      </div>
+      {% if editing and editing.image_filename %}
+      <div class="col-md-4">
+        <label class="form-label">Current image</label>
+        <div class="inventory-form-image-preview">
+          <img src="{{ url_for('static', filename='uploads/inventory/' ~ editing.image_filename) }}" alt="{{ editing.ingredient_name }}">
+          <span>{{ editing.image_filename }}</span>
+        </div>
+      </div>
+      {% endif %}
     </div>
     <div class="form-actions">
       <button class="btn btn-primary">{{ 'Update inventory item' if editing else 'Save inventory item' }}</button>

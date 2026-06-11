@@ -32,6 +32,7 @@
       <div class="client-table__head">
         <div>Business Name</div>
         <div>Email</div>
+        <div>Package</div>
         <div>Status</div>
         <div>Created</div>
         <div>Last Login</div>
@@ -51,6 +52,17 @@
         <div class="client-email-cell">
           <span>{{ client.username }}</span>
           <small>Temp Pass: client123</small>
+        </div>
+        <div class="client-package-cell">
+          <span class="package-badge package-badge--{{ row.subscription_type|lower }}">{{ row.subscription_type }}</span>
+          <form method="post" action="{{ url_for('client_package', client_id=client.id) }}" class="client-package-form">
+            <select class="form-select form-select-sm" name="subscription_type" aria-label="Package for {{ client.full_name }}">
+              {% for package in package_options %}
+              <option value="{{ package }}" {% if row.subscription_type == package %}selected{% endif %}>{{ package }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-sm btn-outline-primary" type="submit">Update</button>
+          </form>
         </div>
         <div>
           <span class="client-status client-status--{{ row.status }}">{{ row.status }}</span>
@@ -128,6 +140,13 @@
         <select class="form-select" name="status">
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Package</label>
+        <select class="form-select" name="subscription_type">
+          <option value="Standard" selected>Standard</option>
+          <option value="Premium">Premium</option>
         </select>
       </div>
       <div class="client-modal__actions">

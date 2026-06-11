@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="profile-preview-page">
+  <div class="page-header">
+    <div>
+      <p class="eyebrow">Profile Preview</p>
+      <h2>{{ user.full_name }}</h2>
+      <p class="text-muted mb-0">This preview shows your own logged-in account only.</p>
+    </div>
+    <a class="btn btn-outline-primary" href="{{ url_for('settings_profile_page') }}">
+      <i class="bi bi-gear"></i>
+      Edit Settings
+    </a>
+  </div>
+
+  <section class="section-card profile-preview-card">
+    <div class="profile-preview-card__hero">
+      <span class="profile-preview-card__avatar">
+        {% if user.profile_image %}
+        <img src="{{ url_for('static', filename='uploads/profiles/' ~ user.profile_image) }}" alt="{{ user.full_name }}">
+        {% else %}
+        {{ user.full_name[:1]|upper }}
+        {% endif %}
+      </span>
+      <div>
+        <span class="profile-preview-card__label">Current Account</span>
+        <h3>{{ user.full_name }}</h3>
+        <div class="profile-preview-card__meta">
+          <span><i class="bi bi-person-badge"></i> {{ 'Client / SME Owner' if is_client_account else 'Admin / Consultant' }}</span>
+          <span><i class="bi bi-circle-fill"></i> {{ user.status|default('active')|title }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="profile-preview-grid">
+      <div>
+        <span>Username / Email</span>
+        <strong>{{ user.username }}</strong>
+      </div>
+      <div>
+        <span>Phone Number</span>
+        <strong>{{ user.phone_number or 'Not provided' }}</strong>
+      </div>
+      <div>
+        <span>Role</span>
+        <strong>{{ 'Client Account' if is_client_account else 'Admin / Analyst' }}</strong>
+      </div>
+      <div>
+        <span>Status</span>
+        <strong>{{ user.status|default('active')|title }}</strong>
+      </div>
+      <div>
+        <span>Last Login</span>
+        <strong>{{ user.last_login_at.strftime('%Y-%m-%d %H:%M') if user.last_login_at else 'Not recorded' }}</strong>
+      </div>
+      <div>
+        <span>Created Date</span>
+        <strong>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'Not recorded' }}</strong>
+      </div>
+      {% if is_client_account %}
+      <div>
+        <span>Business Type</span>
+        <strong>{{ user.business_type or 'Not provided' }}</strong>
+      </div>
+      <div>
+        <span>Subscription / Package</span>
+        <strong><span class="package-badge package-badge--{{ current_account_package|lower }}">{{ current_account_package }}</span></strong>
+      </div>
+      <div class="profile-preview-grid__wide">
+        <span>Business Address</span>
+        <strong>{{ user.business_address or 'Not provided' }}</strong>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

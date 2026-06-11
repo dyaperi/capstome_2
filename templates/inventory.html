@@ -45,6 +45,10 @@
   </div>
 </div>
 
+{% set note_category = 'Inventory' %}
+{% set note_section = 'Inventory Stock Summary' %}
+{% include '_note_action.html' %}
+
 {% if inventory_summary.low_stock_items %}
 <section class="section-card inventory-alert-panel mb-4">
   <div class="section-card__header">
@@ -61,6 +65,9 @@
     </a>
     {% endfor %}
   </div>
+  {% set note_category = 'Inventory' %}
+  {% set note_section = 'Low-stock Alerts' %}
+  {% include '_note_action.html' %}
 </section>
 {% endif %}
 
@@ -73,8 +80,10 @@
     <div class="inventory-stock-board__tools">
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('inventory_add') }}">Add Item</a>
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('inventory_import') }}">Import Excel</a>
+      {% if can_access_premium_features %}
       <a class="btn btn-outline-primary btn-sm" href="{{ url_for('export_inventory_items_excel', mode='active', status=inventory_filters.status, q=inventory_filters.q, category=inventory_filters.category) }}">Export Active</a>
       <a class="btn btn-outline-primary btn-sm" href="{{ url_for('export_stock_movements_excel') }}">Export Movements</a>
+      {% endif %}
       {% if inventory_filters.has_filters %}
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('inventory_page') }}">Clear Filters</a>
       {% endif %}
@@ -124,7 +133,11 @@
     {% set status_label = stock_label(item) %}
     <div class="inventory-stock-row {% if is_admin %}inventory-stock-row--admin{% endif %}">
       <div class="inventory-stock-row__ingredient">
+        {% if item.image_filename %}
+        <img class="inventory-stock-image" src="{{ url_for('static', filename='uploads/inventory/' ~ item.image_filename) }}" alt="{{ item.ingredient_name }}">
+        {% else %}
         <div class="inventory-stock-avatar">{{ item.ingredient_name[:2]|upper }}</div>
+        {% endif %}
         <div>
           <a class="inventory-stock-row__title" href="{{ url_for('inventory_detail', item_id=item.id) }}">{{ item.ingredient_name }}</a>
           <div class="inventory-stock-row__meta">INV-{{ '%03d'|format(item.id) }}{% if is_admin and item.client %} - {{ item.client.full_name }}{% endif %}</div>
@@ -203,6 +216,9 @@
     </nav>
     {% endif %}
   </div>
+  {% set note_category = 'Inventory' %}
+  {% set note_section = 'Ingredient Stock List' %}
+  {% include '_note_action.html' %}
 </section>
 
 {% if inventory_summary.inactive_count or inventory_filters.has_filters %}
@@ -212,7 +228,9 @@
       <h5>Inactive Inventory Items</h5>
       <p>Deactivated ingredients are kept here for reference and can be restored when needed.</p>
     </div>
+    {% if can_access_premium_features %}
     <a class="btn btn-outline-primary btn-sm" href="{{ url_for('export_inventory_items_excel', mode='inactive', q=inventory_filters.q, category=inventory_filters.category) }}">Export Inactive</a>
+    {% endif %}
   </div>
 
   <div class="inventory-stock-table inventory-stock-table--inactive">
@@ -230,7 +248,11 @@
     {% set status_label = stock_label(item) %}
     <div class="inventory-stock-row inventory-stock-row--inactive">
       <div class="inventory-stock-row__ingredient">
+        {% if item.image_filename %}
+        <img class="inventory-stock-image inventory-stock-image--inactive" src="{{ url_for('static', filename='uploads/inventory/' ~ item.image_filename) }}" alt="{{ item.ingredient_name }}">
+        {% else %}
         <div class="inventory-stock-avatar inventory-stock-avatar--inactive">{{ item.ingredient_name[:2]|upper }}</div>
+        {% endif %}
         <div>
           <a class="inventory-stock-row__title" href="{{ url_for('inventory_detail', item_id=item.id) }}">{{ item.ingredient_name }}</a>
           <div class="inventory-stock-row__meta">INV-{{ '%03d'|format(item.id) }}{% if is_admin and item.client %} - {{ item.client.full_name }}{% endif %}</div>
@@ -308,6 +330,9 @@
       {% else %}
       <div class="empty-state empty-state--inventory-panel">No inventory categories available yet. Add a few items to see the chart.</div>
       {% endif %}
+      {% set note_category = 'Inventory' %}
+      {% set note_section = 'Category Distribution' %}
+      {% include '_note_action.html' %}
     </section>
   </div>
   <div class="col-lg-6">
@@ -346,6 +371,9 @@
       {% else %}
       <div class="empty-state empty-state--inventory-panel">No stock activity yet. Record a restock or adjustment to build your audit trail.</div>
       {% endif %}
+      {% set note_category = 'Inventory' %}
+      {% set note_section = 'Recent Stock Activity' %}
+      {% include '_note_action.html' %}
     </section>
   </div>
 </div>
