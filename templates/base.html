@@ -39,17 +39,17 @@
         <i class="bi bi-box-seam"></i><span>Inventory</span>
       </a>
 
-      {% set finance_active = page in ['sales', 'expenses', 'marketing'] %}
+      {% set data_entry_active = page in ['sales', 'expenses', 'marketing', 'reviews'] %}
       <button
         type="button"
-        class="nav-link nav-parent-toggle {% if finance_active %}active expanded{% endif %}"
-        data-sidebar-toggle="finance-entry"
-        aria-expanded="{{ 'true' if finance_active else 'false' }}"
+        class="nav-link nav-parent-toggle {% if data_entry_active %}active expanded{% endif %}"
+        data-sidebar-toggle="data-entry-navigation"
+        aria-expanded="{{ 'true' if data_entry_active else 'false' }}"
       >
-        <span class="nav-link__label"><i class="bi bi-currency-dollar"></i><span>Finance</span></span>
+        <span class="nav-link__label"><i class="bi bi-pencil-square"></i><span>Data Entry</span></span>
         <i class="bi bi-chevron-down toggle-caret" aria-hidden="true"></i>
       </button>
-      <div id="finance-entry" class="sidebar-submenu {% if finance_active %}show{% endif %}">
+      <div id="data-entry-navigation" class="sidebar-submenu {% if data_entry_active %}show{% endif %}">
         <a class="nav-link sub-link {% if page=='sales' %}active{% endif %}" href="{{ url_for('sales_entry') }}">
           <i class="bi bi-receipt"></i><span>Sales</span>
         </a>
@@ -59,13 +59,12 @@
         <a class="nav-link sub-link {% if page=='marketing' %}active{% endif %}" href="{{ url_for('marketing_entry') }}">
           <i class="bi bi-megaphone"></i><span>Marketing</span>
         </a>
+        <a class="nav-link sub-link {% if page=='reviews' %}active{% endif %}" href="{{ url_for('review_entry') }}">
+          <i class="bi bi-star"></i><span>Customer Reviews</span>
+        </a>
       </div>
 
       <div class="sidebar-divider"></div>
-
-      <a class="nav-link {% if page=='reviews' %}active{% endif %}" href="{{ url_for('review_entry') }}">
-        <i class="bi bi-star"></i><span>Customer Reviews</span>
-      </a>
 
       {% if is_client_user %}
       <a class="nav-link" href="{{ url_for('dashboard') }}#recommendations">

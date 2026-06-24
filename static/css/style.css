@@ -866,6 +866,52 @@ body.modal-open {
   width: 145px;
 }
 
+.list-filter-advanced-form {
+  display: grid;
+  gap: .7rem;
+}
+
+.list-filter-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: .65rem;
+  align-items: end;
+}
+
+.list-filter-row--numeric {
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+}
+
+.list-filter-field {
+  display: grid;
+  gap: .35rem;
+  min-width: 0;
+}
+
+.list-filter-field--search {
+  grid-column: span 1;
+}
+
+.list-filter-field .form-label {
+  margin: 0;
+  color: #475467;
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+.list-filter-range-inputs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .4rem;
+}
+
+.list-filter-submit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  justify-content: flex-end;
+}
+
 .list-filter-meta {
   color: var(--muted);
   font-size: .84rem;
@@ -2357,6 +2403,11 @@ div[class*="revenue" i] canvas {
     flex: 1 1 260px;
   }
 
+  .list-filter-row,
+  .list-filter-row--numeric {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .inventory-search-form > div {
     min-width: 0;
   }
@@ -2398,6 +2449,20 @@ div[class*="revenue" i] canvas {
   .list-filter-form {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .list-filter-row,
+  .list-filter-row--numeric,
+  .list-filter-range-inputs {
+    grid-template-columns: 1fr;
+  }
+
+  .list-filter-submit-row {
+    justify-content: stretch;
+  }
+
+  .list-filter-submit-row .btn {
+    flex: 1 1 120px;
   }
 
   .inventory-filter-tabs .btn,

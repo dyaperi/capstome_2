@@ -6,15 +6,6 @@
     <h2>{{ 'Edit Customer Review' if editing else 'Customer Reviews' }}</h2>
     <p class="text-muted mb-0">Capture feedback from QR forms, delivery platforms, and manual entries in one place.</p>
   </div>
-  <form class="toolbar-form" method="get" action="{{ url_for('review_entry') }}">
-    <label class="form-label mb-0" for="source-filter">Source</label>
-    <select id="source-filter" class="form-select" name="source" onchange="this.form.submit()">
-      <option value="All" {% if selected_source=='All' %}selected{% endif %}>All sources</option>
-      {% for source in review_sources %}
-      <option value="{{ source }}" {% if selected_source==source %}selected{% endif %}>{{ source }}</option>
-      {% endfor %}
-    </select>
-  </form>
 </div>
 
 <section class="section-card">
@@ -124,18 +115,101 @@
 <section class="section-card">
   <div class="section-card__header">
     <div>
-      <h5>Recent reviews</h5>
-      <p>Filter by source to focus on platform-specific customer feedback.</p>
+      <h5>{{ list_filter.title }}</h5>
+      <p>{{ list_filter.summary }}</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
       {% if can_access_premium_features %}
-      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('export_reviews_excel', source=selected_source) }}">Export Excel</a>
+      <a class="btn btn-sm btn-outline-primary" href="{{ list_filter.export_url }}">Export Excel</a>
       {% endif %}
       {% if qr_preview %}
       <a class="btn btn-sm btn-outline-primary" href="{{ qr_preview.qr_page_url }}">View QR</a>
       <a class="btn btn-sm btn-outline-primary" href="{{ qr_preview.feedback_url }}" target="_blank" rel="noopener">Open QR form</a>
       {% endif %}
     </div>
+  </div>
+  <div class="list-filter-panel">
+    <div class="list-filter-actions" aria-label="Review date filters">
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'recent' else 'btn-outline-primary' }}" href="{{ list_filter.view_urls.recent }}">Recent</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'all' else 'btn-outline-primary' }}" href="{{ list_filter.view_urls.all }}">Show All</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'day' else 'btn-outline-secondary' }}" href="{{ list_filter.view_urls.day }}">Day</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'week' else 'btn-outline-secondary' }}" href="{{ list_filter.view_urls.week }}">Week</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'month' else 'btn-outline-secondary' }}" href="{{ list_filter.view_urls.month }}">Month</a>
+    </div>
+    <form method="get" class="list-filter-advanced-form">
+      <div class="list-filter-row list-filter-row--reviews">
+        <div class="list-filter-field list-filter-field--search">
+          <label class="form-label" for="reviews-filter-search">Search</label>
+          <input id="reviews-filter-search" class="form-control form-control-sm" name="q" value="{{ list_filter.q }}" placeholder="Review text, customer, menu item, issue">
+        </div>
+        <div class="list-filter-field">
+          <label class="form-label" for="reviews-filter-source">Source</label>
+          <select id="reviews-filter-source" class="form-select form-select-sm" name="source">
+            <option value="All" {% if list_filter.selected_source == 'All' %}selected{% endif %}>All Sources</option>
+            {% for source in source_filter_options %}
+            <option value="{{ source }}" {% if list_filter.selected_source == source %}selected{% endif %}>{{ source }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="list-filter-field">
+          <label class="form-label" for="reviews-filter-rating">Rating</label>
+          <select id="reviews-filter-rating" class="form-select form-select-sm" name="rating">
+            <option value="All" {% if list_filter.selected_rating == 'All' %}selected{% endif %}>All ratings</option>
+            {% for value in [1, 2, 3, 4, 5] %}
+            <option value="{{ value }}" {% if list_filter.selected_rating == value|string %}selected{% endif %}>{{ value }} star{{ '' if value == 1 else 's' }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="list-filter-field">
+          <label class="form-label" for="reviews-filter-sentiment">Sentiment</label>
+          <select id="reviews-filter-sentiment" class="form-select form-select-sm" name="sentiment">
+            <option value="All" {% if list_filter.selected_sentiment == 'All' %}selected{% endif %}>All sentiments</option>
+            {% for sentiment in sentiment_filter_options %}
+            <option value="{{ sentiment }}" {% if list_filter.selected_sentiment == sentiment %}selected{% endif %}>{{ sentiment|title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="list-filter-row list-filter-row--reviews">
+        <div class="list-filter-field">
+          <label class="form-label" for="reviews-filter-issue">Issue</label>
+          <select id="reviews-filter-issue" class="form-select form-select-sm" name="issue">
+            <option value="All" {% if list_filter.selected_issue == 'All' %}selected{% endif %}>All issues</option>
+            {% for issue in issue_filter_options %}
+            <option value="{{ issue }}" {% if list_filter.selected_issue == issue %}selected{% endif %}>{{ issue }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="list-filter-field">
+          <label class="form-label" for="reviews-filter-view">Date filter</label>
+          <select id="reviews-filter-view" class="form-select form-select-sm" name="view">
+            <option value="recent" {% if list_filter.view == 'recent' %}selected{% endif %}>Recent</option>
+            <option value="all" {% if list_filter.view == 'all' %}selected{% endif %}>Show All</option>
+            <option value="day" {% if list_filter.view == 'day' %}selected{% endif %}>Day</option>
+            <option value="week" {% if list_filter.view == 'week' %}selected{% endif %}>Week</option>
+            <option value="month" {% if list_filter.view == 'month' %}selected{% endif %}>Month</option>
+            <option value="date" {% if list_filter.view == 'date' %}selected{% endif %}>Specific date</option>
+            <option value="range" {% if list_filter.view == 'range' %}selected{% endif %}>Date range</option>
+          </select>
+        </div>
+        <div class="list-filter-field">
+          <label class="form-label" for="reviews-filter-date">Specific date</label>
+          <input id="reviews-filter-date" type="date" class="form-control form-control-sm" name="date" value="{{ list_filter.date }}">
+        </div>
+        <div class="list-filter-field list-filter-field--range">
+          <label class="form-label" for="reviews-filter-start">Date range</label>
+          <div class="list-filter-range-inputs">
+            <input id="reviews-filter-start" type="date" class="form-control form-control-sm" name="start_date" value="{{ list_filter.start_date }}">
+            <input type="date" class="form-control form-control-sm" name="end_date" value="{{ list_filter.end_date }}" aria-label="End date">
+          </div>
+        </div>
+      </div>
+      <div class="list-filter-submit-row">
+        <button class="btn btn-sm btn-primary" type="submit">Apply Filter</button>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ list_filter.clear_url }}">Clear Filter</a>
+      </div>
+    </form>
+    <div class="list-filter-meta">{{ list_filter.count }} review{{ '' if list_filter.count == 1 else 's' }} shown</div>
   </div>
   <div class="table-responsive">
     <table class="table table-sm table-striped table-hover align-middle data-table">
@@ -158,7 +232,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="8"><div class="empty-state">No reviews found for this source. Add a review above or change the source filter.</div></td></tr>
+        <tr><td colspan="8"><div class="empty-state">No reviews found for the selected filters.</div></td></tr>
       {% endfor %}
       </tbody>
     </table>

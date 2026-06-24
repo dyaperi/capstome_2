@@ -43,6 +43,7 @@ ISSUE_TAGS = [
     "Staff Attitude",
     "Packaging",
 ]
+REVIEW_SENTIMENT_FILTERS = ["positive", "neutral", "negative"]
 ISSUE_RECOMMENDATIONS = {
     "Service Quality": "Provide service SOP refresh and monitor service quality by shift.",
     "Food Quality": "Run daily taste checks and tighten ingredient quality controls.",
@@ -713,6 +714,29 @@ def extract_route_errors(*results) -> list[str]:
 
 RECENT_RECORD_LIMIT = 10
 LIST_VIEWS = {"recent", "all", "day", "week", "month", "date", "range"}
+RECORD_FILTER_CONFIGS = {
+    "sales": {
+        "search_label": "menu item or sales channel",
+        "numeric_filters": [
+            ("quantity_min", "quantity_max", "Quantity", Sale.quantity, "int"),
+            ("price_min", "price_max", "Price", Sale.unit_price, "float"),
+            ("cost_min", "cost_max", "Cost", Sale.unit_cost, "float"),
+        ],
+    },
+    "expenses": {
+        "search_label": "category or note",
+        "numeric_filters": [
+            ("amount_min", "amount_max", "Amount", Expense.amount, "float"),
+        ],
+    },
+    "marketing": {
+        "search_label": "campaign name or platform",
+        "numeric_filters": [
+            ("spend_min", "spend_max", "Spend", MarketingCampaign.spend, "float"),
+            ("revenue_min", "revenue_max", "Revenue", MarketingCampaign.revenue_generated, "float"),
+        ],
+    },
+}
 
 
 def month_bounds(day: date) -> tuple[date, date]:
@@ -722,6 +746,252 @@ def month_bounds(day: date) -> tuple[date, date]:
     else:
         end = start.replace(month=start.month + 1) - timedelta(days=1)
     return start, end
+
+
+def record_advanced_filter_state(module_key: str) -> dict:
+    config = RECORD_FILTER_CONFIGS.get(module_key, {})
+    state = {"q": clean_text(request.args.get("q"))}
+    for min_key, max_key, *_ in config.get("numeric_filters", []):
+        state[min_key] = clean_text(request.args.get(min_key))
+        state[max_key] = clean_text(request.args.get(max_key))
+    return state
+
+
+def record_advanced_filter_args(state: dict) -> dict:
+    return {key: value for key, value in state.items() if clean_text(value)}
+
+
+def append_record_filter_summary(summary: str, module_key: str, state: dict) -> str:
+    details = []
+    q = clean_text(state.get("q"))
+    if q:
+        search_label = RECORD_FILTER_CONFIGS.get(module_key, {}).get("search_label", "records")
+        details.append(f'Searching {search_label} for "{q}".')
+    range_count = 0
+    for min_key, max_key, *_ in RECORD_FILTER_CONFIGS.get(module_key, {}).get("numeric_filters", []):
+        if clean_text(state.get(min_key)) or clean_text(state.get(max_key)):
+            range_count += 1
+    if range_count:
+        details.append("Numeric range filters are applied.")
+    if details:
+        return f"{summary} {' '.join(details)}"
+    return summary
+
+
+def apply_record_advanced_filters(query, module_key: str | None, *, flash_errors: bool = True):
+    if not module_key:
+        return query, {}, []
+
+    state = record_advanced_filter_state(module_key)
+    errors = []
+    q = clean_text(state.get("q"))
+    if q:
+        pattern = f"%{q}%"
+        if module_key == "sales":
+            query = query.filter(
+                or_(
+                    Sale.channel.ilike(pattern),
+                    Sale.menu_item.has(MenuItem.item_name.ilike(pattern)),
+                )
+            )
+        elif module_key == "expenses":
+            query = query.filter(or_(Expense.category.ilike(pattern), Expense.note.ilike(pattern)))
+        elif module_key == "marketing":
+            query = query.filter(
+                or_(
+                    MarketingCampaign.campaign_name.ilike(pattern),
+                    MarketingCampaign.platform.ilike(pattern),
+                )
+            )
+
+    for min_key, max_key, label, column, value_type in RECORD_FILTER_CONFIGS.get(module_key, {}).get("numeric_filters", []):
+        parser = parse_int_field if value_type == "int" else parse_float_field
+        min_value, min_error = parser(state.get(min_key), f"{label} minimum", min_value=0)
+        max_value, max_error = parser(state.get(max_key), f"{label} maximum", min_value=0)
+        if min_error:
+            errors.append(min_error)
+        if max_error:
+            errors.append(max_error)
+        if min_error or max_error:
+            continue
+        if min_value is not None and max_value is not None and min_value > max_value:
+            errors.append(f"{label} minimum must be less than or equal to {label.lower()} maximum.")
+            continue
+        if min_value is not None:
+            query = query.filter(column >= min_value)
+        if max_value is not None:
+            query = query.filter(column <= max_value)
+
+    if errors and flash_errors:
+        flash(" ".join(errors), "danger")
+    return query, state, errors
+
+
+def record_filter_query_args(view: str, exact_date: str, start_date: str, end_date: str, state: dict) -> dict:
+    args = {"view": view}
+    if view == "date" and exact_date:
+        args["date"] = exact_date
+    elif view == "range":
+        if start_date:
+            args["start_date"] = start_date
+        if end_date:
+            args["end_date"] = end_date
+    args.update(record_advanced_filter_args(state))
+    return args
+
+
+def attach_list_filter_urls(list_filter: dict, page_endpoint: str, export_endpoint: str | None = None) -> dict:
+    advanced_args = dict(list_filter.get("advanced_args") or {})
+    list_filter["view_urls"] = {
+        "recent": url_for(page_endpoint, **advanced_args),
+        "all": url_for(page_endpoint, view="all", **advanced_args),
+        "day": url_for(page_endpoint, view="day", **advanced_args),
+        "week": url_for(page_endpoint, view="week", **advanced_args),
+        "month": url_for(page_endpoint, view="month", **advanced_args),
+    }
+    list_filter["clear_url"] = url_for(page_endpoint)
+    if export_endpoint:
+        list_filter["export_url"] = url_for(export_endpoint, **list_filter.get("query_args", {}))
+    return list_filter
+
+
+def unique_review_filter_options(defaults: list[str], values: list[str]) -> list[str]:
+    options = []
+    seen = set()
+    for value in [*defaults, *values]:
+        cleaned = clean_text(value)
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        options.append(cleaned)
+    return options
+
+
+def review_filter_choices() -> tuple[list[str], list[str]]:
+    source_values = [
+        row[0]
+        for row in scoped_query(CustomerReview)
+        .with_entities(CustomerReview.source)
+        .distinct()
+        .order_by(CustomerReview.source.asc())
+        .all()
+    ]
+    issue_values = [
+        row[0]
+        for row in scoped_query(CustomerReview)
+        .with_entities(CustomerReview.issue_tag)
+        .distinct()
+        .order_by(CustomerReview.issue_tag.asc())
+        .all()
+    ]
+    return (
+        unique_review_filter_options(REVIEW_SOURCES, source_values),
+        unique_review_filter_options(ISSUE_TAGS, issue_values),
+    )
+
+
+def review_filter_state() -> tuple[dict, list[str]]:
+    state = {
+        "q": clean_text(request.args.get("q")),
+        "source": clean_text(request.args.get("source")) or "All",
+        "rating": clean_text(request.args.get("rating")) or "All",
+        "sentiment": clean_text(request.args.get("sentiment")) or "All",
+        "issue": clean_text(request.args.get("issue")) or "All",
+    }
+    errors = []
+    if state["rating"] != "All":
+        rating, rating_error = parse_int_field(state["rating"], "Rating", min_value=1, max_value=5)
+        if rating_error:
+            errors.append(rating_error)
+            state["rating"] = "All"
+        else:
+            state["rating"] = str(rating)
+    if state["sentiment"] != "All":
+        sentiment = state["sentiment"].lower()
+        if sentiment not in REVIEW_SENTIMENT_FILTERS:
+            errors.append("Choose a valid sentiment filter.")
+            state["sentiment"] = "All"
+        else:
+            state["sentiment"] = sentiment
+    return state, errors
+
+
+def review_filter_query_args(state: dict) -> dict:
+    args = {}
+    if clean_text(state.get("q")):
+        args["q"] = clean_text(state.get("q"))
+    for key in ["source", "rating", "sentiment", "issue"]:
+        value = clean_text(state.get(key)) or "All"
+        if value != "All":
+            args[key] = value
+    return args
+
+
+def apply_review_filters(query, *, flash_errors: bool = True):
+    state, errors = review_filter_state()
+    q = clean_text(state.get("q"))
+    if q:
+        pattern = f"%{q}%"
+        query = query.filter(
+            or_(
+                CustomerReview.review_text.ilike(pattern),
+                CustomerReview.customer_name.ilike(pattern),
+                CustomerReview.phone_number.ilike(pattern),
+                CustomerReview.menu_item.ilike(pattern),
+                CustomerReview.issue_tag.ilike(pattern),
+                CustomerReview.source.ilike(pattern),
+                CustomerReview.client.has(User.full_name.ilike(pattern)),
+            )
+        )
+
+    if state["source"] != "All":
+        query = query.filter(CustomerReview.source == state["source"])
+    if state["rating"] != "All":
+        query = query.filter(CustomerReview.rating == int(state["rating"]))
+    if state["sentiment"] != "All":
+        query = query.filter(CustomerReview.sentiment_label == state["sentiment"])
+    if state["issue"] != "All":
+        query = query.filter(CustomerReview.issue_tag == state["issue"])
+
+    if errors and flash_errors:
+        flash(" ".join(errors), "danger")
+    return query, state, errors
+
+
+def attach_review_filter_metadata(list_filter: dict, state: dict) -> dict:
+    review_args = review_filter_query_args(state)
+    list_filter["advanced_args"] = review_args
+    list_filter["query_args"] = record_filter_query_args(
+        list_filter["view"],
+        list_filter["date"],
+        list_filter["start_date"],
+        list_filter["end_date"],
+        review_args,
+    )
+    list_filter["q"] = state.get("q", "")
+    list_filter["selected_source"] = state.get("source", "All")
+    list_filter["selected_rating"] = state.get("rating", "All")
+    list_filter["selected_sentiment"] = state.get("sentiment", "All")
+    list_filter["selected_issue"] = state.get("issue", "All")
+    list_filter["has_filters"] = bool(list_filter["view"] != "recent" or review_args)
+
+    details = []
+    if clean_text(state.get("q")):
+        details.append(f'Searching reviews for "{state["q"]}".')
+    if state.get("source") != "All":
+        details.append(f'Source: {state["source"]}.')
+    if state.get("rating") != "All":
+        details.append(f'Rating: {state["rating"]} star{"s" if state["rating"] != "1" else ""}.')
+    if state.get("sentiment") != "All":
+        details.append(f'Sentiment: {state["sentiment"].title()}.')
+    if state.get("issue") != "All":
+        details.append(f'Issue: {state["issue"]}.')
+    if details:
+        list_filter["summary"] = f"{list_filter['summary']} {' '.join(details)}"
+    return list_filter
 
 
 def sentiment_summary_from_reviews(reviews) -> dict:
@@ -772,7 +1042,7 @@ def load_sentiment_filter() -> dict:
     return saved if isinstance(saved, dict) else default_sentiment_filter()
 
 
-def build_record_list(query, date_column, *, module_label: str) -> tuple[list, dict]:
+def build_record_list(query, date_column, *, module_label: str, advanced_filter_module: str | None = None) -> tuple[list, dict]:
     today = date.today()
     view = clean_text(request.args.get("view")) or "recent"
     if view not in LIST_VIEWS:
@@ -830,19 +1100,32 @@ def build_record_list(query, date_column, *, module_label: str) -> tuple[list, d
             active_title = f"{module_label.capitalize()} by date range"
             active_summary = f"Showing records from {parsed_start_date.strftime('%Y-%m-%d')} to {parsed_end_date.strftime('%Y-%m-%d')}."
 
+    filter_query, advanced_state, _ = apply_record_advanced_filters(filter_query, advanced_filter_module)
+    active_summary = append_record_filter_summary(active_summary, advanced_filter_module, advanced_state)
+
     if view == "recent":
         records = filter_query.order_by(date_column.desc()).limit(RECENT_RECORD_LIMIT).all()
     else:
         records = filter_query.order_by(date_column.desc()).all()
 
+    exact_date_value = (parsed_exact_date or today).strftime("%Y-%m-%d")
+    start_date_value = parsed_start_date.strftime("%Y-%m-%d") if parsed_start_date else start_date_raw
+    end_date_value = parsed_end_date.strftime("%Y-%m-%d") if parsed_end_date else end_date_raw
+    query_args = record_filter_query_args(view, exact_date_value, start_date_value, end_date_value, advanced_state)
+
     return records, {
         "view": view,
         "title": active_title,
         "summary": active_summary,
-        "date": (parsed_exact_date or today).strftime("%Y-%m-%d"),
-        "start_date": parsed_start_date.strftime("%Y-%m-%d") if parsed_start_date else start_date_raw,
-        "end_date": parsed_end_date.strftime("%Y-%m-%d") if parsed_end_date else end_date_raw,
+        "date": exact_date_value,
+        "start_date": start_date_value,
+        "end_date": end_date_value,
         "count": len(records),
+        "q": advanced_state.get("q", ""),
+        "advanced": advanced_state,
+        "advanced_args": record_advanced_filter_args(advanced_state),
+        "query_args": query_args,
+        "has_filters": bool(view != "recent" or record_advanced_filter_args(advanced_state)),
     }
 
 
@@ -952,7 +1235,7 @@ def build_campaign_roi_table(query) -> tuple[list[dict], dict]:
     }
 
 
-def records_for_export(query, date_column):
+def records_for_export(query, date_column, *, advanced_filter_module: str | None = None):
     today = date.today()
     view = clean_text(request.args.get("view")) or "recent"
     if view not in LIST_VIEWS:
@@ -984,6 +1267,8 @@ def records_for_export(query, date_column):
             filter_query = filter_query.filter(date_column.between(parsed_start_date, parsed_end_date))
         else:
             view = "recent"
+
+    filter_query, _, _ = apply_record_advanced_filters(filter_query, advanced_filter_module, flash_errors=False)
 
     if view == "recent":
         return filter_query.order_by(date_column.desc()).limit(RECENT_RECORD_LIMIT).all()
@@ -3115,7 +3400,7 @@ def register_routes(app: Flask) -> None:
         premium_redirect = require_premium_access("Excel export")
         if premium_redirect:
             return premium_redirect
-        records = records_for_export(scoped_query(Sale), Sale.sale_date)
+        records = records_for_export(scoped_query(Sale), Sale.sale_date, advanced_filter_module="sales")
         rows = [
             {
                 "Sale Date": sale.sale_date.strftime("%Y-%m-%d") if sale.sale_date else "",
@@ -3140,7 +3425,7 @@ def register_routes(app: Flask) -> None:
         premium_redirect = require_premium_access("Excel export")
         if premium_redirect:
             return premium_redirect
-        records = records_for_export(scoped_query(Expense), Expense.expense_date)
+        records = records_for_export(scoped_query(Expense), Expense.expense_date, advanced_filter_module="expenses")
         rows = [
             {
                 "Expense Date": expense.expense_date.strftime("%Y-%m-%d") if expense.expense_date else "",
@@ -3162,7 +3447,11 @@ def register_routes(app: Flask) -> None:
         premium_redirect = require_premium_access("Excel export")
         if premium_redirect:
             return premium_redirect
-        records = records_for_export(scoped_query(MarketingCampaign), MarketingCampaign.campaign_date)
+        records = records_for_export(
+            scoped_query(MarketingCampaign),
+            MarketingCampaign.campaign_date,
+            advanced_filter_module="marketing",
+        )
         rows = [
             {
                 "Campaign Date": campaign.campaign_date.strftime("%Y-%m-%d") if campaign.campaign_date else "",
@@ -3218,11 +3507,8 @@ def register_routes(app: Flask) -> None:
         premium_redirect = require_premium_access("Excel export")
         if premium_redirect:
             return premium_redirect
-        selected_source = clean_text(request.args.get("source")) or "All"
-        query = scoped_query(CustomerReview)
-        if selected_source != "All":
-            query = query.filter(CustomerReview.source == selected_source)
-        records = query.order_by(CustomerReview.review_date.desc()).all()
+        query, _, _ = apply_review_filters(scoped_query(CustomerReview), flash_errors=False)
+        records = records_for_export(query, CustomerReview.review_date)
         rows = [
             {
                 "Review Date": review.review_date.strftime("%Y-%m-%d") if review.review_date else "",
@@ -3398,7 +3684,13 @@ def register_routes(app: Flask) -> None:
                 flash("Sales record added.", "success")
             db.session.commit()
             return redirect(url_for("sales_entry"))
-        recent, list_filter = build_record_list(scoped_query(Sale), Sale.sale_date, module_label="sales")
+        recent, list_filter = build_record_list(
+            scoped_query(Sale),
+            Sale.sale_date,
+            module_label="sales",
+            advanced_filter_module="sales",
+        )
+        attach_list_filter_urls(list_filter, "sales_entry", "export_sales_excel")
         return render_template("sales.html", page="sales", items=items, item_snapshots=item_snapshots, recent=recent, list_filter=list_filter, today=date.today(), editing=editing, sales_channels=SALES_CHANNELS)
 
     @app.route("/sales/delete/<int:sale_id>", methods=["POST"])
@@ -3449,7 +3741,13 @@ def register_routes(app: Flask) -> None:
                 flash("Expense record added.", "success")
             db.session.commit()
             return redirect(url_for("expense_entry"))
-        recent, list_filter = build_record_list(scoped_query(Expense), Expense.expense_date, module_label="expenses")
+        recent, list_filter = build_record_list(
+            scoped_query(Expense),
+            Expense.expense_date,
+            module_label="expenses",
+            advanced_filter_module="expenses",
+        )
+        attach_list_filter_urls(list_filter, "expense_entry", "export_expenses_excel")
         return render_template("expenses.html", page="expenses", recent=recent, list_filter=list_filter, today=date.today(), editing=editing)
 
     @app.route("/expenses/delete/<int:expense_id>", methods=["POST"])
@@ -3506,7 +3804,13 @@ def register_routes(app: Flask) -> None:
                 flash("Marketing campaign added.", "success")
             db.session.commit()
             return redirect(url_for("marketing_entry"))
-        recent, list_filter = build_record_list(scoped_query(MarketingCampaign), MarketingCampaign.campaign_date, module_label="campaigns")
+        recent, list_filter = build_record_list(
+            scoped_query(MarketingCampaign),
+            MarketingCampaign.campaign_date,
+            module_label="campaigns",
+            advanced_filter_module="marketing",
+        )
+        attach_list_filter_urls(list_filter, "marketing_entry", "export_marketing_excel")
         return render_template("marketing.html", page="marketing", recent=recent, list_filter=list_filter, today=date.today(), editing=editing)
 
     @app.route("/marketing/delete/<int:campaign_id>", methods=["POST"])
@@ -3595,11 +3899,11 @@ def register_routes(app: Flask) -> None:
                 flash("Customer review added and sentiment analyzed.", "success")
             db.session.commit()
             return redirect(url_for("review_entry"))
-        selected_source = request.args.get("source", "All")
-        query = scoped_query(CustomerReview)
-        if selected_source != "All":
-            query = query.filter(CustomerReview.source == selected_source)
-        recent = query.order_by(CustomerReview.review_date.desc()).all()
+        query, review_filters, _ = apply_review_filters(scoped_query(CustomerReview))
+        recent, list_filter = build_record_list(query, CustomerReview.review_date, module_label="reviews")
+        attach_review_filter_metadata(list_filter, review_filters)
+        attach_list_filter_urls(list_filter, "review_entry", "export_reviews_excel")
+        source_filter_options, issue_filter_options = review_filter_choices()
         context_client_id = current_client_id()
         if staff_required() and context_client_id is not None:
             clients = User.query.filter_by(id=context_client_id, role=RoleService.CLIENT).all()
@@ -3623,9 +3927,13 @@ def register_routes(app: Flask) -> None:
             editing=editing,
             review_sources=REVIEW_SOURCES,
             issue_tags=ISSUE_TAGS,
+            source_filter_options=source_filter_options,
+            issue_filter_options=issue_filter_options,
+            sentiment_filter_options=REVIEW_SENTIMENT_FILTERS,
             order_types=ORDER_TYPES,
             clients=clients,
-            selected_source=selected_source,
+            list_filter=list_filter,
+            selected_source=list_filter["selected_source"],
             qr_preview=qr_preview,
         )
 

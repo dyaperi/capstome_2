@@ -88,32 +88,75 @@
       <p>{{ list_filter.summary }}</p>
     </div>
     {% if can_access_premium_features %}
-    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('export_sales_excel', view=list_filter.view, date=list_filter.date, start_date=list_filter.start_date, end_date=list_filter.end_date) }}">Export Excel</a>
+    <a class="btn btn-sm btn-outline-primary" href="{{ list_filter.export_url }}">Export Excel</a>
     {% endif %}
   </div>
   <div class="list-filter-panel">
     <div class="list-filter-actions" aria-label="Sales list filters">
-      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'recent' else 'btn-outline-primary' }}" href="{{ url_for('sales_entry') }}">Recent</a>
-      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'all' else 'btn-outline-primary' }}" href="{{ url_for('sales_entry', view='all') }}">Show All</a>
-      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'day' else 'btn-outline-secondary' }}" href="{{ url_for('sales_entry', view='day') }}">Day</a>
-      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'week' else 'btn-outline-secondary' }}" href="{{ url_for('sales_entry', view='week') }}">Week</a>
-      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'month' else 'btn-outline-secondary' }}" href="{{ url_for('sales_entry', view='month') }}">Month</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'recent' else 'btn-outline-primary' }}" href="{{ list_filter.view_urls.recent }}">Recent</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'all' else 'btn-outline-primary' }}" href="{{ list_filter.view_urls.all }}">Show All</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'day' else 'btn-outline-secondary' }}" href="{{ list_filter.view_urls.day }}">Day</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'week' else 'btn-outline-secondary' }}" href="{{ list_filter.view_urls.week }}">Week</a>
+      <a class="btn btn-sm {{ 'btn-primary' if list_filter.view == 'month' else 'btn-outline-secondary' }}" href="{{ list_filter.view_urls.month }}">Month</a>
     </div>
-    <div class="list-filter-forms">
-      <form method="get" class="list-filter-form">
-        <input type="hidden" name="view" value="date">
-        <label class="form-label" for="sales-filter-date">Specific date</label>
-        <input id="sales-filter-date" type="date" class="form-control form-control-sm" name="date" value="{{ list_filter.date }}">
-        <button class="btn btn-sm btn-outline-primary">Apply</button>
-      </form>
-      <form method="get" class="list-filter-form list-filter-form--range">
-        <input type="hidden" name="view" value="range">
-        <label class="form-label" for="sales-filter-start">Date range</label>
-        <input id="sales-filter-start" type="date" class="form-control form-control-sm" name="start_date" value="{{ list_filter.start_date }}">
-        <input type="date" class="form-control form-control-sm" name="end_date" value="{{ list_filter.end_date }}" aria-label="End date">
-        <button class="btn btn-sm btn-outline-primary">Apply</button>
-      </form>
-    </div>
+    <form method="get" class="list-filter-advanced-form">
+      <div class="list-filter-row list-filter-row--search">
+        <div class="list-filter-field list-filter-field--search">
+          <label class="form-label" for="sales-filter-search">Search</label>
+          <input id="sales-filter-search" class="form-control form-control-sm" name="q" value="{{ list_filter.q }}" placeholder="Menu item or channel">
+        </div>
+        <div class="list-filter-field">
+          <label class="form-label" for="sales-filter-view">Date filter</label>
+          <select id="sales-filter-view" class="form-select form-select-sm" name="view">
+            <option value="recent" {% if list_filter.view == 'recent' %}selected{% endif %}>Recent</option>
+            <option value="all" {% if list_filter.view == 'all' %}selected{% endif %}>Show All</option>
+            <option value="day" {% if list_filter.view == 'day' %}selected{% endif %}>Day</option>
+            <option value="week" {% if list_filter.view == 'week' %}selected{% endif %}>Week</option>
+            <option value="month" {% if list_filter.view == 'month' %}selected{% endif %}>Month</option>
+            <option value="date" {% if list_filter.view == 'date' %}selected{% endif %}>Specific date</option>
+            <option value="range" {% if list_filter.view == 'range' %}selected{% endif %}>Date range</option>
+          </select>
+        </div>
+        <div class="list-filter-field">
+          <label class="form-label" for="sales-filter-date">Specific date</label>
+          <input id="sales-filter-date" type="date" class="form-control form-control-sm" name="date" value="{{ list_filter.date }}">
+        </div>
+        <div class="list-filter-field list-filter-field--range">
+          <label class="form-label" for="sales-filter-start">Date range</label>
+          <div class="list-filter-range-inputs">
+            <input id="sales-filter-start" type="date" class="form-control form-control-sm" name="start_date" value="{{ list_filter.start_date }}">
+            <input type="date" class="form-control form-control-sm" name="end_date" value="{{ list_filter.end_date }}" aria-label="End date">
+          </div>
+        </div>
+      </div>
+      <div class="list-filter-row list-filter-row--numeric">
+        <div class="list-filter-field">
+          <label class="form-label" for="sales-quantity-min">Quantity range</label>
+          <div class="list-filter-range-inputs">
+            <input id="sales-quantity-min" type="number" min="0" step="1" class="form-control form-control-sm" name="quantity_min" value="{{ list_filter.advanced.quantity_min }}" placeholder="Min">
+            <input type="number" min="0" step="1" class="form-control form-control-sm" name="quantity_max" value="{{ list_filter.advanced.quantity_max }}" placeholder="Max" aria-label="Maximum quantity">
+          </div>
+        </div>
+        <div class="list-filter-field">
+          <label class="form-label" for="sales-price-min">Price range</label>
+          <div class="list-filter-range-inputs">
+            <input id="sales-price-min" type="number" min="0" step="0.01" class="form-control form-control-sm" name="price_min" value="{{ list_filter.advanced.price_min }}" placeholder="Min RM">
+            <input type="number" min="0" step="0.01" class="form-control form-control-sm" name="price_max" value="{{ list_filter.advanced.price_max }}" placeholder="Max RM" aria-label="Maximum price">
+          </div>
+        </div>
+        <div class="list-filter-field">
+          <label class="form-label" for="sales-cost-min">Cost range</label>
+          <div class="list-filter-range-inputs">
+            <input id="sales-cost-min" type="number" min="0" step="0.01" class="form-control form-control-sm" name="cost_min" value="{{ list_filter.advanced.cost_min }}" placeholder="Min RM">
+            <input type="number" min="0" step="0.01" class="form-control form-control-sm" name="cost_max" value="{{ list_filter.advanced.cost_max }}" placeholder="Max RM" aria-label="Maximum cost">
+          </div>
+        </div>
+      </div>
+      <div class="list-filter-submit-row">
+        <button class="btn btn-sm btn-primary" type="submit">Apply Filter</button>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ list_filter.clear_url }}">Clear Filter</a>
+      </div>
+    </form>
     <div class="list-filter-meta">{{ list_filter.count }} record{{ '' if list_filter.count == 1 else 's' }} shown</div>
   </div>
   <div class="table-responsive">
@@ -135,7 +178,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="6"><div class="empty-state">No sales records match this view. Try Show All or adjust the date filter.</div></td></tr>
+        <tr><td colspan="6"><div class="empty-state">No sales records match these filters. Try Clear Filter or broaden the search, date, or numeric ranges.</div></td></tr>
       {% endfor %}
       </tbody>
     </table>
